@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Capture
 Estimate: M
 Depends on: TICKET-002
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -42,12 +42,12 @@ No new additions.
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi cam-preview` opens a window showing the live camera within 1 s on a reference laptop.
-- [ ] Measured fps printed in the overlay stays within +/- 2 fps of the 25 fps target under no load.
-- [ ] Stopping the consumer thread for 1 s does not raise in the capture thread - dropped-frame counter increments instead.
-- [ ] `WebcamSource` used as a context manager releases the device (verified by successfully reopening in the same process).
-- [ ] Unit test `tests/test_webcam_source.py` uses a monkeypatched fake `cv2.VideoCapture` to assert: ring-buffer drops oldest, `get_latest()` returns newest, thread joins on `__exit__`.
-- [ ] With the camera disabled in Windows privacy settings, `WebcamSource.__enter__` raises a `WebcamUnavailableError` with a clear remediation message.
+- [x] `python -m sabi cam-preview` opens a window showing the live camera within 1 s on a reference laptop.
+- [x] Measured fps printed in the overlay stays within +/- 2 fps of the 25 fps target under no load.
+- [x] Stopping the consumer thread for 1 s does not raise in the capture thread - dropped-frame counter increments instead.
+- [x] `WebcamSource` used as a context manager releases the device (verified by successfully reopening in the same process).
+- [x] Unit test `tests/test_webcam_source.py` uses a monkeypatched fake `cv2.VideoCapture` to assert: ring-buffer drops oldest, `get_latest()` returns newest, thread joins on `__exit__`.
+- [x] With the camera disabled in Windows privacy settings, `WebcamSource.__enter__` raises a `WebcamUnavailableError` with a clear remediation message.
 
 ## Out of scope
 

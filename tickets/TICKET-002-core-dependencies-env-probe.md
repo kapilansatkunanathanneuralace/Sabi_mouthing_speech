@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Infra
 Estimate: M
 Depends on: TICKET-001
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -65,12 +65,17 @@ pip install -e .[dev]
 
 ## Acceptance criteria
 
-- [ ] `pip install -e .[dev]` on a clean venv on Windows completes without conflicts (after running the torch CUDA line from `docs/INSTALL.md`).
-- [ ] `python -m sabi probe` prints a pass/fail table for every package above, plus webcam and mic status.
-- [ ] With the webcam disabled in Windows privacy settings, the probe fails with a clear remediation message and non-zero exit code.
-- [ ] With CUDA absent, the probe still exits 0 but prints a visible `CUDA: not available (CPU fallback will be used)` warning.
-- [ ] `pytest tests/test_probe.py` passes.
-- [ ] `docs/INSTALL.md` exists and matches what a fresh-clone developer must actually run.
+- [x] `pip install -e .[dev]` on a clean venv on Windows completes without conflicts (after running the torch CUDA line from `docs/INSTALL.md`).
+- [x] `python -m sabi probe` prints a pass/fail table for every package above, plus webcam and mic status.
+- [x] With the webcam disabled in Windows privacy settings, the probe fails with a clear remediation message and non-zero exit code.
+- [x] With CUDA absent, the probe still exits 0 but prints a visible `CUDA: not available (CPU fallback will be used)` warning.
+- [x] `pytest tests/test_probe.py` passes.
+- [x] `docs/INSTALL.md` exists and matches what a fresh-clone developer must actually run.
+
+### Implementation notes
+
+- `pyproject.toml` uses **ranges** for some packages (torch, faster-whisper, numpy, pydantic, httpx, rich, typer, sounddevice) and **mediapipe 0.10.33** so installs resolve on **Python 3.14** where ticket-pinned wheels are unavailable. See `docs/INSTALL.md` section **Dependency notes**.
+- `python -m sabi probe` invokes `sabi.probe.main()` (same entrypoint as `scripts/probe_env.py`), satisfying the single-source probe requirement.
 
 ## Out of scope
 

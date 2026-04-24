@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sabi"
+version = "0.0.0"
+description = "Silent speech / mouthing-to-text PoC (see tickets/README.md)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Sabi" }]
+
+dependencies = [
+    "opencv-python==4.10.0.84",
+    "mediapipe==0.10.33",
+    # TICKET-002 suggested numpy<2.1; newer Python stacks need NumPy 2.x wheels.
+    "numpy>=1.26,<3",
+    # TICKET-002 suggested torch==2.3.1+cu121; use a lower bound so modern wheels resolve.
+    # GPU Windows: install CUDA wheels first per docs/INSTALL.md when you need CUDA.
+    "torch>=2.3.1",
+    "torchaudio>=2.3.1",
+    # 1.0.3 pulls source builds of `av` on cp314; 1.2.x brings binary wheels.
+    "faster-whisper>=1.2.1",
+    "sounddevice>=0.5,<0.6",
+    "webrtcvad-wheels==2.0.14",
+    "pyautogui==0.9.54",
+    "pyperclip==1.9.0",
+    "keyboard==0.13.5",
+    # 2.8.x lacks cp314 wheels for pydantic-core; keep lower bound from ticket, allow patch upgrades.
+    "pydantic>=2.8.2",
+    "httpx>=0.27,<1",
+    "rich>=13.7.1",
+    "typer>=0.12.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4.0",
+    "black>=24.0.0",
+    "pytest>=8.0.0",
+    "pytest-timeout==2.3.1",
+]
+
+[project.scripts]
+sabi = "sabi.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

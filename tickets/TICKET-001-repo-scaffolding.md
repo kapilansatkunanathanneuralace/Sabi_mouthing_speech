@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Infra
 Estimate: S
 Depends on: -
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -57,12 +57,12 @@ These go into `pyproject.toml` under `[project.optional-dependencies].dev`.
 
 ## Acceptance criteria
 
-- [ ] `python -m venv .venv` then `.\.venv\Scripts\pip install -e .[dev]` succeeds.
-- [ ] `python -m sabi` prints the stub message and exits 0.
-- [ ] `ruff check .` and `black --check .` both pass on the empty project.
-- [ ] `pytest` runs (zero tests is fine) and exits 0.
-- [ ] Directory layout above exists and is committed (empty dirs get a `.gitkeep`).
-- [ ] `reports/latency-log.md` exists with a header row: `| ticket | hardware | stage | p50_ms | p95_ms | samples | notes |`.
+- [x] `python -m venv .venv` then `.\.venv\Scripts\pip install -e .[dev]` succeeds.
+- [x] `python -m sabi` prints the stub message and exits 0.
+- [x] `ruff check .` and `black --check .` both pass on the empty project.
+- [x] `pytest` runs (zero tests is fine) and exits 0.
+- [x] Directory layout above exists and is committed (empty dirs get a `.gitkeep`).
+- [x] `reports/latency-log.md` exists with a header row: `| ticket | hardware | stage | p50_ms | p95_ms | samples | notes |`.
 
 ## Out of scope
 

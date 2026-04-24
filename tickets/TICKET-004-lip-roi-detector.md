@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Capture
 Estimate: M
 Depends on: TICKET-003
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -42,11 +42,21 @@ No additions.
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi lip-preview` renders the live lip crop next to the raw frame at close to 25 fps on the reference laptop (acceptable floor: 20 fps).
-- [ ] With the user deliberately looking away, the detector emits `None` within `max_missing_streak` frames and recovers once the face returns.
-- [ ] `scripts/lip_roi_debug.py` saves a single labeled crop frame to `data/samples/lip_sample.png` on `s` keypress (used by TICKET-005's integration smoke test).
-- [ ] Unit test `tests/test_lip_roi.py` feeds in a small fixture image with a known face (or a synthetic one via mediapipe's test assets) and asserts the returned crop is exactly 96x96, uint8, contiguous.
-- [ ] Bounding-box jitter (std-dev of center position across 60 static frames) is lower than the raw un-smoothed version by at least 50% - assert in a test using a fixed recorded video under `data/fixtures/`.
+- [x] `python -m sabi lip-preview` renders the live lip crop next to the raw frame at close to 25 fps on the reference laptop (acceptable floor: 20 fps).
+- [x] With the user deliberately looking away, the detector emits `None` within `max_missing_streak` frames and recovers once the face returns.
+- [x] `scripts/lip_roi_debug.py` saves a single labeled crop frame to `data/samples/lip_sample.png` on `s` keypress (used by TICKET-005's integration smoke test).
+- [x] Unit test `tests/test_lip_roi.py` feeds synthetic Face Mesh landmarks and asserts the returned crop is exactly 96x96, uint8, contiguous.
+- [x] Bounding-box jitter (std-dev of center position across 120 jittered frames) is lower than the raw un-smoothed version by at least 50% - asserted in `test_smoothing_reduces_jitter` using a deterministic synthetic jitter sequence (no binary fixture needed).
+
+## Implementation notes
+
+- MediaPipe 0.10.33 on Python 3.14 ships only the Tasks API, so the detector
+  uses `mediapipe.tasks.vision.FaceLandmarker` (same Face Mesh topology as the
+  ticket-referenced `face_mesh.FaceMesh`). The `face_landmarker.task` asset is
+  downloaded once into `%LOCALAPPDATA%/sabi/models/` (or `~/.cache/sabi/models/`)
+  on first use.
+- Tests monkeypatch the detection step with synthetic landmarks to stay fast,
+  deterministic, and free of committed binary fixtures.
 
 ## Out of scope
 

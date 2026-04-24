@@ -36,6 +36,9 @@ htmlcov/
 data/eval/*.wav
 data/eval/*.mp4
 
+# Model weights (downloaded on first run, large binaries)
+data/models/
+
 # Reports: ignore generated markdown except the shared latency log
 reports/*.md
 !reports/latency-log.md

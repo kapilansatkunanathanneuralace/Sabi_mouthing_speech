@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from sabi.capture.lip_preview import run_lip_preview
@@ -103,6 +105,115 @@ def probe_cmd(
     ),
 ) -> None:
     raise typer.Exit(run_probe(camera_index=camera_index))
+
+
+@app.command("mic-preview")
+def mic_preview_cmd(
+    device: int = typer.Option(
+        -1,
+        "--device",
+        help="sounddevice input index; -1 uses the system default.",
+    ),
+    aggressiveness: int = typer.Option(
+        2,
+        "--aggressiveness",
+        help="WebRTC VAD aggressiveness (0=lenient..3=strict).",
+    ),
+    frame_ms: int = typer.Option(
+        20,
+        "--frame-ms",
+        help="VAD frame size in milliseconds (10, 20, or 30).",
+    ),
+    min_utterance_ms: int = typer.Option(
+        300,
+        "--min-utterance-ms",
+        help="Discard speech segments shorter than this duration.",
+    ),
+    max_utterance_ms: int = typer.Option(
+        15000,
+        "--max-utterance-ms",
+        help="Force-close an utterance that runs longer than this duration.",
+    ),
+    trailing_silence_ms: int = typer.Option(
+        400,
+        "--trailing-silence-ms",
+        help="Silence after speech required to close an utterance.",
+    ),
+) -> None:
+    """Live dB meter + VAD indicator for mic capture (TICKET-006)."""
+
+    from sabi.capture.mic_preview import run_mic_preview
+    from sabi.capture.microphone import MicConfig
+
+    cfg = MicConfig(
+        device_index=None if device < 0 else device,
+        vad_aggressiveness=aggressiveness,
+        frame_ms=frame_ms,  # type: ignore[arg-type]
+        min_utterance_ms=min_utterance_ms,
+        max_utterance_ms=max_utterance_ms,
+        trailing_silence_ms=trailing_silence_ms,
+    )
+    run_mic_preview(cfg)
+
+
+@app.command("download-vsr")
+def download_vsr_cmd(
+    force: bool = typer.Option(False, "--force", help="Redownload existing weights."),
+    print_hashes: bool = typer.Option(
+        False,
+        "--print-hashes",
+        help="Print sha256 of each resulting file in TOML form.",
+    ),
+) -> None:
+    """Download Chaplin / Auto-AVSR weights per ``configs/vsr_weights.toml`` (TICKET-005)."""
+
+    from sabi.models.vsr.download import main as _download_main
+
+    argv: list[str] = []
+    if force:
+        argv.append("--force")
+    if print_hashes:
+        argv.append("--print-hashes")
+    raise typer.Exit(_download_main(argv))
+
+
+@app.command("vsr-smoke")
+def vsr_smoke_cmd(
+    video_path: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to a short video clip to transcribe.",
+    ),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help="Torch device: auto/cuda/cpu.",
+    ),
+    precision: str = typer.Option(
+        "fp32",
+        "--precision",
+        help="fp16 enables autocast on CUDA; ignored on CPU.",
+    ),
+    wer_gate: float = typer.Option(
+        0.30,
+        "--wer-gate",
+        help="Warn above this WER when a sibling .txt ground truth exists.",
+    ),
+) -> None:
+    """Run the VSR wrapper end-to-end over a recorded clip (TICKET-005 acceptance)."""
+
+    import logging
+
+    from sabi.models.vsr.model import VSRModelConfig
+    from sabi.models.vsr.smoke import run_vsr_smoke
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    lip_cfg = LipROIConfig(grayscale=True)
+    vsr_cfg = VSRModelConfig(device=device, precision=precision)  # type: ignore[arg-type]
+    run_vsr_smoke(video_path, vsr_cfg, lip_cfg, wer_gate=wer_gate)
 
 
 @app.command("silent-dictate")

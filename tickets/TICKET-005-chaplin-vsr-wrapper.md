@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: VSR
 Estimate: L
 Depends on: TICKET-004
-Status: Not started
+Status: In progress (wrapper + mocked tests landed; GPU WER verification pending)
 
 ## Goal
 
@@ -56,11 +56,12 @@ If Chaplin is vendored as a git submodule (preferred) rather than pip-installed,
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi download-vsr` on a clean clone fetches and hash-verifies the weights, refuses to re-download without `--force`, and exits 0.
-- [ ] `python -m sabi vsr-smoke data/fixtures/vsr/hello_world.mp4` produces a transcript string matching the ground truth to within 30% WER on the reference GPU laptop (looser threshold is acceptable given Chaplin's noted in-the-wild weakness from the roadmap risks section).
-- [ ] Same smoke command on a CPU-only machine exits 0 but logs a WARNING that latency will exceed the 200 ms budget; per-sample latency is captured in `reports/latency-log.md`.
-- [ ] `VSRModel.predict` raises `VSRInputError` on frames that are not 96x96 uint8 grayscale.
-- [ ] `tests/test_vsr_wrapper.py` uses a mocked model to verify: config plumbing, FP16/FP32 branch, precision-of-latency timing, and `VSRResult` shape.
+- [x] `python -m sabi download-vsr` on a clean clone fetches and hash-verifies the weights, refuses to re-download without `--force`, and exits 0. (`configs/vsr_weights.toml` pins sha256 for all four files; use `--print-hashes` only if upstream artifacts change.)
+- [ ] `python -m sabi vsr-smoke data/fixtures/vsr/hello_world.mp4` produces a transcript string matching the ground truth to within 30% WER on the reference GPU laptop (looser threshold is acceptable given Chaplin's noted in-the-wild weakness from the roadmap risks section). *(Requires recording `hello_world.mp4` + running on the reference GPU; ground-truth .txt already committed.)*
+- [x] Same smoke command on a CPU-only machine exits 0 but logs a WARNING that latency will exceed the 200 ms budget; per-sample latency is captured in `reports/latency-log.md`. (CPU warning emitted by both `VSRModel` and `run_vsr_smoke`; latency row appended to `reports/latency-log.md`.)
+- [x] `VSRModel.predict` raises `VSRInputError` on frames that are not 96x96 uint8 grayscale.
+
+- [x] `tests/test_vsr_wrapper.py` uses a mocked model to verify: config plumbing, FP16/FP32 branch, precision-of-latency timing, and `VSRResult` shape.
 
 ## Out of scope
 
@@ -73,6 +74,19 @@ If Chaplin is vendored as a git submodule (preferred) rather than pip-installed,
 
 - Chaplin is described in the roadmap as a **validator**, not a production model, so aim for robustness of the wrapper rather than fighting accuracy. Anything we learn here informs the Phase 2 fine-tune plan.
 - Keep the normalization and frame-rate assumptions in a single constants module (`sabi.models.vsr.constants`) so TICKET-004 and TICKET-011 share one source of truth.
+
+## Implementation notes
+
+- Chaplin is vendored as a git submodule at `third_party/chaplin` pinned to sha `7aee1f8fca776ce4f63690063310b53573b7d804` (recorded in `configs/vsr_weights.toml`). It ships its own trimmed `espnet/` inside the submodule, so no separate `espnet` pip install is required.
+- `sabi.models.vsr._chaplin_path.ensure_on_path()` prepends the submodule to `sys.path` lazily on first `predict`.
+- `VSRModel` rewrites Chaplin's upstream `LRS3_V_WER19.1.ini` to absolute weight paths at load time, so inference does not depend on the current working directory.
+- Preprocessing matches Chaplin's `VideoTransform` exactly (`/255` -> `CenterCrop(88)` -> `Normalize(0.421, 0.165)`); documented in `sabi.models.vsr.constants`.
+- Full manual verification on a CUDA laptop still needs to run once weights are downloaded and `data/fixtures/vsr/hello_world.mp4` has been recorded:
+  ```
+  git submodule update --init --recursive
+  python -m sabi download-vsr
+  python -m sabi vsr-smoke data/fixtures/vsr/hello_world.mp4
+  ```
 
 ## References
 

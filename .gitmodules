@@ -1,0 +1,3 @@
+[submodule "third_party/chaplin"]
+	path = third_party/chaplin
+	url = https://github.com/amanvirparhar/chaplin

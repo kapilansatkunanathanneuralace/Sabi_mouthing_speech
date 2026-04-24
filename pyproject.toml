@@ -20,8 +20,21 @@ dependencies = [
     # GPU Windows: install CUDA wheels first per docs/INSTALL.md when you need CUDA.
     "torch>=2.3.1",
     "torchaudio>=2.3.1",
+    # Chaplin VSR (TICKET-005) needs torchvision for its VideoTransform pipeline.
+    "torchvision>=0.18.1",
     # 1.0.3 pulls source builds of `av` on cp314; 1.2.x brings binary wheels.
     "faster-whisper>=1.2.1",
+    # Chaplin upstream (third_party/chaplin) runtime deps (espnet is vendored there).
+    # TICKET-005 pins; bounds relaxed where strict pins do not resolve on cp314.
+    "sentencepiece>=0.2.0",
+    "omegaconf>=2.3.0",
+    "hydra-core>=1.3.2",
+    "pytorch-lightning>=2.3.3",
+    "editdistance>=0.8.1",
+    "scipy>=1.11",
+    "scikit-image>=0.22",
+    "av>=12.0",
+    "six>=1.16.0",
     "sounddevice>=0.5,<0.6",
     "webrtcvad-wheels==2.0.14",
     "pyautogui==0.9.54",
@@ -40,6 +53,8 @@ dev = [
     "black>=24.0.0",
     "pytest>=8.0.0",
     "pytest-timeout==2.3.1",
+    # Optional WER gate for `sabi vsr-smoke` (TICKET-005); safe to omit in minimal installs.
+    "jiwer>=3.0",
 ]
 
 [project.scripts]

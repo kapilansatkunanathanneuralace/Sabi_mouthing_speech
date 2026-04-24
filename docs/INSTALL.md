@@ -43,7 +43,17 @@ The probe will print a yellow warning when CUDA is not available; it still exits
 
 ## Camera and microphone (Windows)
 
-Allow desktop apps under **Settings > Privacy & security > Camera** and **Microphone**. If `python -m sabi probe` fails to open the webcam, close other apps using the camera and retry.
+Allow desktop apps under **Settings > Privacy & security > Camera** and **Microphone**. If `python -m sabi probe` fails to open the webcam, close other apps using the camera and retry. `python -m sabi mic-preview` (TICKET-006) opens the default input device at 16 kHz mono and raises `MicUnavailableError` if microphone access is blocked.
+
+### Optional VAD fallback (TICKET-006)
+
+`sabi.capture.microphone` prefers `webrtcvad` (bundled via `webrtcvad-wheels`). If that import ever fails, it transparently falls back to `silero-vad`, which is **not** installed by default. Install it only if you need the fallback path:
+
+```powershell
+pip install silero-vad
+```
+
+The selected backend is exposed as `MicrophoneSource.backend` (`"webrtcvad"` or `"silero"`).
 
 ## Ollama
 

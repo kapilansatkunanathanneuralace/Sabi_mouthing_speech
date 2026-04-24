@@ -1,0 +1,36 @@
+# Chaplin / Auto-AVSR weight manifest (TICKET-005).
+#
+# Updated during `python -m sabi download-vsr`. Files land under
+# data/models/vsr/ at relative_path and are then referenced from the
+# generated runtime ini (see src/sabi/models/vsr/model.py).
+
+[chaplin]
+repo = "https://github.com/amanvirparhar/chaplin"
+# Pinned commit the wrapper is written against. Bump + re-test when upgrading.
+sha = "7aee1f8fca776ce4f63690063310b53573b7d804"
+# Upstream ini the wrapper loads; resolved relative to third_party/chaplin.
+config_ini = "configs/LRS3_V_WER19.1.ini"
+
+[[files]]
+name = "vsr_model"
+relative_path = "benchmarks/LRS3/models/LRS3_V_WER19.1/model.pth"
+url = "https://huggingface.co/Amanvir/LRS3_V_WER19.1/resolve/main/model.pth"
+sha256 = "e740cef369abeabd0ba2c18e37a0661342e1d94d432d6caa77755a11821d8fe3"
+
+[[files]]
+name = "vsr_model_conf"
+relative_path = "benchmarks/LRS3/models/LRS3_V_WER19.1/model.json"
+url = "https://huggingface.co/Amanvir/LRS3_V_WER19.1/resolve/main/model.json"
+sha256 = "e062e8c58579f54cb51087e639e674781189809905db4162efe0fe1325356d4f"
+
+[[files]]
+name = "lm_model"
+relative_path = "benchmarks/LRS3/language_models/lm_en_subword/model.pth"
+url = "https://huggingface.co/Amanvir/lm_en_subword/resolve/main/model.pth"
+sha256 = "c75aa39020dec98f432c8689b145d3f4cc407d4daa90a0c64202386c34f83c18"
+
+[[files]]
+name = "lm_model_conf"
+relative_path = "benchmarks/LRS3/language_models/lm_en_subword/model.json"
+url = "https://huggingface.co/Amanvir/lm_en_subword/resolve/main/model.json"
+sha256 = "6e2d2004e4066af3e5a3d74c53b0d648fd53904da07178671d1cbe28a206d548"

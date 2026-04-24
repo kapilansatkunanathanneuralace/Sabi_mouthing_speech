@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import typer
@@ -216,16 +217,479 @@ def vsr_smoke_cmd(
     run_vsr_smoke(video_path, vsr_cfg, lip_cfg, wer_gate=wer_gate)
 
 
+@app.command("asr-smoke")
+def asr_smoke_cmd(
+    wav_path: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to a short 16 kHz mono wav clip to transcribe.",
+    ),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help="faster-whisper device: auto/cuda/cpu.",
+    ),
+    model_size: str = typer.Option(
+        "small",
+        "--model-size",
+        help="Checkpoint size (tiny/base/small/medium/large-v3); roadmap MVP = small.",
+    ),
+    compute_type: str = typer.Option(
+        "",
+        "--compute-type",
+        help="Override CTranslate2 compute_type (e.g. int8, int8_float16, float16).",
+    ),
+    language: str = typer.Option(
+        "en",
+        "--language",
+        help="ISO 639-1 code. Pass empty string to enable auto-detect.",
+    ),
+    beam_size: int = typer.Option(1, "--beam-size", help="Decoding beam size."),
+    wer_gate: float = typer.Option(
+        0.10,
+        "--wer-gate",
+        help="Warn above this WER when a sibling .txt ground truth exists.",
+    ),
+    latency_gate_ms: float = typer.Option(
+        500.0,
+        "--latency-gate-ms",
+        help="Warn when transcription latency exceeds this budget.",
+    ),
+    warmup: bool = typer.Option(
+        True,
+        "--warmup/--no-warmup",
+        help="Run one 0.5 s dummy inference before the real transcription.",
+    ),
+) -> None:
+    """Run the ASR wrapper end-to-end over a recorded clip (TICKET-007 acceptance)."""
+
+    import logging
+
+    from sabi.models.asr import ASRModelConfig
+    from sabi.models.asr_smoke import run_asr_smoke
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    asr_cfg = ASRModelConfig(
+        model_size=model_size,  # type: ignore[arg-type]
+        device=device,  # type: ignore[arg-type]
+        compute_type=compute_type or None,
+        language=language or None,
+        beam_size=beam_size,
+    )
+    run_asr_smoke(
+        wav_path,
+        asr_cfg,
+        wer_gate=wer_gate,
+        warmup=warmup,
+        latency_gate_ms=latency_gate_ms,
+    )
+
+
+@app.command("cleanup-smoke")
+def cleanup_smoke_cmd(
+    text: str = typer.Argument(
+        ...,
+        help='Raw text to clean, e.g. "um i think it might like work".',
+    ),
+    config_path: Path = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Override path to configs/cleanup.toml.",
+    ),
+    base_url: str = typer.Option(
+        "",
+        "--base-url",
+        help="Override Ollama base URL (e.g. http://127.0.0.1:11434).",
+    ),
+    model: str = typer.Option(
+        "",
+        "--model",
+        help="Override Ollama model tag (e.g. llama3.2:3b-instruct-q4_K_M).",
+    ),
+    timeout_ms: int = typer.Option(
+        0,
+        "--timeout-ms",
+        help="Override cleanup request timeout in milliseconds.",
+    ),
+    source: str = typer.Option(
+        "asr",
+        "--source",
+        help="CleanupContext.source: asr or vsr.",
+    ),
+    register_hint: str = typer.Option(
+        "dictation",
+        "--register-hint",
+        help="CleanupContext.register_hint: dictation/meeting/chat.",
+    ),
+    focused_app: str = typer.Option(
+        "",
+        "--focused-app",
+        help="Optional focused-app hint (TICKET-011/012 will populate this).",
+    ),
+) -> None:
+    """Run one cleanup pass against a local Ollama instance (TICKET-008)."""
+
+    import logging
+
+    from sabi.cleanup import CleanupContext, TextCleaner, load_cleanup_config
+    from sabi.models.latency import append_latency_row
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    cfg = load_cleanup_config(config_path)
+    overrides: dict[str, object] = {}
+    if base_url:
+        overrides["base_url"] = base_url
+    if model:
+        overrides["model"] = model
+    if timeout_ms > 0:
+        overrides["timeout_ms"] = timeout_ms
+    if overrides:
+        cfg = cfg.model_copy(update=overrides)
+
+    context = CleanupContext(
+        source=source,  # type: ignore[arg-type]
+        register_hint=register_hint,  # type: ignore[arg-type]
+        focused_app=focused_app or None,
+    )
+
+    with TextCleaner(cfg) as cleaner:
+        probe_ok = cleaner.is_available()
+        result = cleaner.cleanup(text, context)
+
+    hardware = "ollama" if probe_ok and not result.used_fallback else "fallback"
+    notes = (
+        f"model={cfg.model} source={context.source} "
+        f"fallback={result.used_fallback}"
+    )
+    if result.reason:
+        notes += f" reason={result.reason}"
+    append_latency_row(
+        "TICKET-008",
+        hardware,
+        "cleanup",
+        result.latency_ms,
+        len(text),
+        notes,
+    )
+
+    print(f"raw      : {text!r}")
+    print(f"cleaned  : {result.text!r}")
+    print(f"latency  : {result.latency_ms:.1f} ms")
+    print(f"fallback : {result.used_fallback}")
+    if result.reason:
+        print(f"reason   : {result.reason}")
+    if not probe_ok:
+        print("note     : Ollama did not respond to /api/tags - returning raw text.")
+
+
+@app.command("paste-test")
+def paste_test_cmd(
+    text: str = typer.Argument(..., help="Text to paste into whichever window is focused after the countdown."),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Skip Ctrl+V; clipboard is still written and restored so you can verify round-trip.",
+    ),
+    paste_delay_ms: int = typer.Option(
+        15,
+        "--paste-delay-ms",
+        help="Delay between clipboard write and Ctrl+V (ms). 15 ms is the smallest reliable value on Slack Desktop.",
+    ),
+    restore_delay_ms: int = typer.Option(
+        400,
+        "--restore-delay-ms",
+        help="Delay before the prior clipboard contents are restored (ms).",
+    ),
+    countdown: int = typer.Option(
+        3,
+        "--countdown",
+        help="Seconds to wait before pressing Ctrl+V so the user can focus the target window.",
+    ),
+) -> None:
+    """Paste a string into the focused window (TICKET-009)."""
+
+    import logging
+
+    from sabi.models.latency import append_latency_row
+    from sabi.output import InjectConfig, paste_text
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    cfg = InjectConfig(
+        paste_delay_ms=paste_delay_ms,
+        restore_delay_ms=restore_delay_ms,
+        dry_run=dry_run,
+    )
+
+    if not dry_run and countdown > 0:
+        typer.echo(f"Focus the target window. Pasting in {countdown} s...")
+        for remaining in range(countdown, 0, -1):
+            typer.echo(f"  {remaining}...")
+            time.sleep(1.0)
+
+    result = paste_text(text, cfg)
+
+    notes = f"dry_run={dry_run} paste_delay_ms={paste_delay_ms} restore_delay_ms={restore_delay_ms}"
+    if result.error:
+        notes += f" error={result.error}"
+    append_latency_row(
+        "TICKET-009",
+        "windows",
+        "inject",
+        result.latency_ms,
+        result.length,
+        notes,
+    )
+
+    print(f"text     : {text!r}")
+    print(f"length   : {result.length}")
+    print(f"latency  : {result.latency_ms:.1f} ms")
+    print(f"dry_run  : {dry_run}")
+    if result.error:
+        print(f"error    : {result.error}")
+
+
+@app.command("hotkey-debug")
+def hotkey_debug_cmd(
+    config_path: Path = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Override path to configs/hotkey.toml.",
+    ),
+    mode: str = typer.Option(
+        "",
+        "--mode",
+        help="Override trigger mode: push_to_talk or toggle.",
+    ),
+    binding: str = typer.Option(
+        "",
+        "--binding",
+        help="Override hotkey chord (e.g. 'ctrl+alt+space').",
+    ),
+    min_hold_ms: int = typer.Option(
+        0,
+        "--min-hold-ms",
+        help="Override minimum hold duration in milliseconds.",
+    ),
+    cooldown_ms: int = typer.Option(
+        0,
+        "--cooldown-ms",
+        help="Override cooldown between successful on_start events.",
+    ),
+) -> None:
+    """Print TRIGGER START / STOP events from the hotkey layer (TICKET-010)."""
+
+    import logging
+
+    from sabi.input import load_hotkey_config, run_hotkey_debug
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    cfg = load_hotkey_config(config_path)
+    overrides: dict[str, object] = {}
+    if mode:
+        overrides["mode"] = mode
+    if binding:
+        overrides["binding"] = binding
+    if min_hold_ms > 0:
+        overrides["min_hold_ms"] = min_hold_ms
+    if cooldown_ms > 0:
+        overrides["cooldown_ms"] = cooldown_ms
+    if overrides:
+        cfg = cfg.model_copy(update=overrides)
+
+    raise typer.Exit(run_hotkey_debug(cfg))
+
+
 @app.command("silent-dictate")
-def silent_dictate_cmd() -> None:
-    typer.echo("not implemented yet (TICKET-011)")
-    raise typer.Exit(1)
+def silent_dictate_cmd(
+    config_path: Path = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Override path to configs/silent_dictate.toml.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the cleaned text to stdout instead of pasting (TICKET-009 dry-run).",
+    ),
+    force_cpu: bool = typer.Option(
+        False,
+        "--force-cpu",
+        help="Force VSR onto CPU (smoke-testing on machines without CUDA).",
+    ),
+    keep_camera_open: bool = typer.Option(
+        False,
+        "--keep-camera-open",
+        help="Keep the webcam hot between triggers (faster utterances; LED stays on).",
+    ),
+    binding: str = typer.Option(
+        "",
+        "--binding",
+        help="Override the primary hotkey chord (e.g. 'ctrl+alt+space').",
+    ),
+    force_paste_binding: str = typer.Option(
+        "",
+        "--force-paste-binding",
+        help="Override the force-paste chord (default F12).",
+    ),
+    confidence_floor: float = typer.Option(
+        -1.0,
+        "--confidence-floor",
+        help="Override VSR confidence floor for paste gating. Negative = use config.",
+    ),
+    force_paste_mode: str = typer.Option(
+        "",
+        "--force-paste",
+        help="Force-paste policy: listener|always|never.",
+    ),
+) -> None:
+    """Silent-dictation pipeline (TICKET-011)."""
+
+    import logging
+
+    from sabi.pipelines import load_silent_dictate_config, run_silent_dictate
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    cfg = load_silent_dictate_config(config_path)
+
+    overrides: dict[str, object] = {}
+    if dry_run:
+        overrides["dry_run"] = True
+    if keep_camera_open:
+        overrides["keep_camera_open"] = True
+    if force_cpu:
+        overrides["device_override"] = "cpu"
+    if binding:
+        overrides["hotkey"] = cfg.hotkey.model_copy(update={"binding": binding})
+    if force_paste_binding:
+        overrides["force_paste_binding"] = force_paste_binding
+    if confidence_floor >= 0.0:
+        overrides["confidence_floor"] = confidence_floor
+    if force_paste_mode:
+        overrides["force_paste_mode"] = force_paste_mode  # type: ignore[assignment]
+    if overrides:
+        cfg = cfg.model_copy(update=overrides)
+
+    raise typer.Exit(run_silent_dictate(cfg))
 
 
 @app.command("dictate")
-def dictate_cmd() -> None:
-    typer.echo("not implemented yet (TICKET-012)")
-    raise typer.Exit(1)
+def dictate_cmd(
+    config_path: Path = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Override path to configs/audio_dictate.toml.",
+    ),
+    mode: str = typer.Option(
+        "",
+        "--mode",
+        help="Trigger mode: push-to-talk|push_to_talk|vad. Empty = use config.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the cleaned text to stdout instead of pasting.",
+    ),
+    force_cpu: bool = typer.Option(
+        False,
+        "--force-cpu",
+        help="Force ASR onto CPU (smoke-testing on machines without CUDA).",
+    ),
+    ptt_open_per_trigger: bool = typer.Option(
+        False,
+        "--ptt-open-per-trigger",
+        help="Open the microphone per PTT trigger instead of preopening on pipeline start.",
+    ),
+    binding: str = typer.Option(
+        "",
+        "--binding",
+        help="Override the primary hotkey chord (e.g. 'ctrl+alt+space').",
+    ),
+    force_paste_binding: str = typer.Option(
+        "",
+        "--force-paste-binding",
+        help="Override the force-paste chord (default F12).",
+    ),
+    confidence_floor: float = typer.Option(
+        -1.0,
+        "--confidence-floor",
+        help="Override ASR confidence floor for paste gating. Negative = use config.",
+    ),
+    force_paste_mode: str = typer.Option(
+        "",
+        "--force-paste",
+        help=(
+            "Force-paste policy: listener|always|never. "
+            "Applied to both PTT and VAD fields when provided."
+        ),
+    ),
+) -> None:
+    """Audio-dictation pipeline (TICKET-012)."""
+
+    import logging
+
+    from sabi.pipelines import load_audio_dictate_config, run_audio_dictate
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    cfg = load_audio_dictate_config(config_path)
+
+    overrides: dict[str, object] = {}
+    if mode:
+        normalized = mode.strip().lower().replace("-", "_")
+        if normalized not in {"push_to_talk", "vad"}:
+            raise typer.BadParameter(
+                f"--mode must be 'push-to-talk' or 'vad', got {mode!r}",
+                param_hint="--mode",
+            )
+        overrides["trigger_mode"] = normalized  # type: ignore[assignment]
+    if dry_run:
+        overrides["dry_run"] = True
+    if ptt_open_per_trigger:
+        overrides["ptt_open_per_trigger"] = True
+    if force_cpu:
+        overrides["device_override"] = "cpu"
+    if binding:
+        overrides["hotkey"] = cfg.hotkey.model_copy(update={"binding": binding})
+    if force_paste_binding:
+        overrides["force_paste_binding"] = force_paste_binding
+    if confidence_floor >= 0.0:
+        overrides["confidence_floor"] = confidence_floor
+    if force_paste_mode:
+        normalized_fpm = force_paste_mode.strip().lower()
+        if normalized_fpm not in {"listener", "always", "never"}:
+            raise typer.BadParameter(
+                f"--force-paste must be listener|always|never, got {force_paste_mode!r}",
+                param_hint="--force-paste",
+            )
+        overrides["force_paste_mode_ptt"] = normalized_fpm  # type: ignore[assignment]
+        overrides["force_paste_mode_vad"] = normalized_fpm  # type: ignore[assignment]
+    if overrides:
+        cfg = cfg.model_copy(update=overrides)
+
+    raise typer.Exit(run_audio_dictate(cfg))
 
 
 def main() -> None:

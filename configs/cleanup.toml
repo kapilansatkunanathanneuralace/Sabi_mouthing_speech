@@ -1,0 +1,33 @@
+# Ollama LLM cleanup config (TICKET-008).
+#
+# Loaded by sabi.cleanup.ollama.load_cleanup_config(). All keys are
+# optional at the TOML layer; missing values fall back to CleanupConfig
+# defaults. Install Ollama per docs/INSTALL.md, then:
+#
+#     ollama pull llama3.2:3b-instruct-q4_K_M
+#     curl http://127.0.0.1:11434/api/tags
+#
+# After editing this file, restart any long-running sabi process so the
+# new values are picked up.
+
+[ollama]
+base_url = "http://127.0.0.1:11434"
+model = "llama3.2:3b-instruct-q4_K_M"
+
+[limits]
+# Full cleanup request timeout; the pipeline must stay under ~300-400 ms
+# on reference hardware to meet the PoC latency budget.
+timeout_ms = 800
+# Availability probe (GET /api/tags) timeout - deliberately shorter so a
+# hung daemon cannot stall the first utterance at startup.
+availability_timeout_ms = 250
+# How long an availability probe result is cached (ms).
+availability_cache_ms = 5000
+max_output_tokens = 256
+temperature = 0.2
+# Return raw_text unchanged when Ollama is unreachable or times out.
+bypass_on_error = true
+# Hallucination guard: if cleaned > max_growth_factor * len(raw) and raw
+# is long enough (max_growth_floor characters), discard and return raw.
+max_growth_factor = 3.0
+max_growth_floor = 16

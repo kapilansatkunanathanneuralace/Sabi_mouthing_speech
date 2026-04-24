@@ -1,0 +1,70 @@
+# Silent-dictation pipeline config (TICKET-011).
+#
+# Loaded by sabi.pipelines.silent_dictate.load_silent_dictate_config(). All
+# sections and all keys are optional; anything missing falls back to the
+# per-module defaults (WebcamConfig, LipROIConfig, VSRModelConfig,
+# CleanupConfig, InjectConfig, HotkeyConfig) plus the pipeline-level
+# defaults defined on SilentDictateConfig. See docs/silent-dictate.md for
+# the end-to-end flow, latency budget, and JSONL schema.
+
+[webcam]
+# Keep in sync with `python -m sabi cam-preview` (TICKET-003).
+device_index = 0
+target_fps = 25.0
+width = 1280
+height = 720
+mirror = false
+
+[lip_roi]
+# 96x96 grayscale crops feed straight into Chaplin VSR (TICKET-004/005).
+target_size = 96
+grayscale = true
+smooth_alpha = 0.5
+max_missing_streak = 15
+
+[vsr]
+# "auto" picks CUDA when available. Override per-run with --force-cpu.
+device = "auto"
+precision = "fp32"
+
+[cleanup]
+# Ollama reuses its own timeouts/bypass behavior (TICKET-008). Point at
+# a different host / model here if you run cleanup on a separate box.
+base_url = "http://127.0.0.1:11434"
+model = "llama3.2:3b-instruct-q4_K_M"
+
+[inject]
+# Paste tuning (TICKET-009). Slack needs >=15 ms paste_delay_ms.
+paste_delay_ms = 15
+restore_delay_ms = 400
+
+[hotkey]
+# Must differ from pipeline.force_paste_binding below.
+mode = "push_to_talk"
+binding = "ctrl+alt+space"
+min_hold_ms = 80
+cooldown_ms = 150
+
+[pipeline]
+# Withhold paste when VSRResult.confidence is below this floor.
+confidence_floor = 0.35
+# Minimum fraction of captured frames that must contain a detected face;
+# drops paste with an ERROR log when the user occludes the camera.
+occlusion_threshold = 0.6
+# Force-paste chord + wait window. Press within the window to paste the
+# previously-withheld utterance anyway. Use force_paste_mode="never" to
+# disable, "always" to ignore confidence entirely.
+force_paste_binding = "f12"
+force_paste_window_ms = 1500
+force_paste_mode = "listener"
+# keep_camera_open=true keeps the webcam hot between triggers (0 ms
+# capture_open_ms per utterance) at the cost of the camera LED staying
+# on. Default false matches the roadmap "privacy-safe default" UX note.
+keep_camera_open = false
+# dry_run prints the cleaned text to stdout instead of pasting. The
+# --dry-run CLI flag also flips InjectConfig.dry_run so paste_text never
+# fires Ctrl+V.
+dry_run = false
+# Label used in reports/latency-log.md rows. Override on non-Windows
+# hosts (e.g. "wsl", "macos") so the eval harness can group runs.
+hardware_label = "windows"

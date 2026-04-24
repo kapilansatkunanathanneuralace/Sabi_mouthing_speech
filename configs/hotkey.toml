@@ -1,0 +1,23 @@
+# Hotkey trigger config (TICKET-010).
+#
+# Loaded by sabi.input.hotkey.load_hotkey_config(). All keys are optional;
+# missing values fall back to HotkeyConfig defaults. The hotkey layer uses
+# the `keyboard` package under the hood, which talks to the Windows hook
+# directly. See docs/hotkey.md for caveats (corporate AV, rebinding).
+
+[trigger]
+# "push_to_talk" records while held; "toggle" flips on alternating presses.
+mode = "push_to_talk"
+# `keyboard` accepts standard chord strings (e.g. "ctrl+alt+space",
+# "ctrl+shift+f12"). Ctrl+Alt+Space was picked because it does not clash
+# with Slack, VS Code, or Windows defaults on the PoC hardware.
+binding = "ctrl+alt+space"
+
+[gates]
+# Ignore pushes shorter than this - avoids accidental taps in PTT mode
+# and accidental double-flips in toggle mode.
+min_hold_ms = 80
+# Minimum gap between successful on_start events, both for hotkey-driven
+# and CLI-driven triggers. Prevents double-firing when a key repeats or a
+# test harness fires twice in quick succession.
+cooldown_ms = 150

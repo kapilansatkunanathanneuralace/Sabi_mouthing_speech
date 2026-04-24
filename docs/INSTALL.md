@@ -55,9 +55,83 @@ pip install silero-vad
 
 The selected backend is exposed as `MicrophoneSource.backend` (`"webrtcvad"` or `"silero"`).
 
-## Ollama
+## Ollama (TICKET-008 cleanup pass)
 
-Ollama is **not** installed in this ticket. See **TICKET-008** for the LLM cleanup service.
+`sabi.cleanup` posts to a **local** Ollama instance to clean up dictated
+text (filler removal, punctuation, casing, stutter collapse). The
+pipeline degrades gracefully when Ollama is unreachable, so installing
+it is optional for the capture/VSR/ASR tickets but required to satisfy
+TICKET-008 acceptance criteria.
+
+1. Install Ollama for Windows from [ollama.com/download](https://ollama.com/download).
+2. Pull the default model tag (matches `configs/cleanup.toml`):
+
+    ```powershell
+    ollama pull llama3.2:3b-instruct-q4_K_M
+    ```
+
+3. Confirm the daemon is reachable:
+
+    ```powershell
+    curl http://127.0.0.1:11434/api/tags
+    ```
+
+4. Run the smoke test:
+
+    ```powershell
+    python -m sabi cleanup-smoke "um i think it might like work"
+    ```
+
+    With Ollama running you should see a cleaned sentence (e.g. `"I
+    think it might work."`) and `fallback : False`. With Ollama stopped
+    the command still exits `0`, prints the raw text unchanged, and logs
+    a single WARNING.
+
+Edit `configs/cleanup.toml` to switch the model tag, tighten timeouts,
+or point at a remote Ollama host. See
+[`docs/cleanup-prompt.md`](cleanup-prompt.md) for prompt versioning.
+
+## Paste injection (TICKET-009)
+
+`python -m sabi paste-test "hello world"` copies a string to the
+clipboard, fires `Ctrl+V` after a 3 s countdown, and restores the prior
+clipboard on a background thread. See
+[`docs/paste-injection.md`](paste-injection.md) for the Windows-specific
+gotchas (Slack debounce, `OpenClipboard` contention, focus stealing).
+
+## Hotkey trigger (TICKET-010)
+
+`python -m sabi hotkey-debug` prints `[TRIGGER START]` / `[TRIGGER STOP]`
+as you press the configured chord (default Ctrl+Alt+Space). Push-to-talk
+and toggle modes are both supported. See
+[`docs/hotkey.md`](hotkey.md) for the binding format, corporate AV
+caveats, and the rationale behind the chord-parsing workaround for the
+`keyboard` library's single-callback-per-chord limitation.
+
+## Silent dictation (TICKET-011)
+
+`python -m sabi silent-dictate` is the end-to-end PoC: hold the hotkey,
+mouth a phrase, and the pipeline captures frames, runs Chaplin VSR,
+cleans the text through Ollama, and pastes into the focused window.
+Low-confidence utterances wait on a configurable force-paste key (F12
+by default). See [`docs/silent-dictate.md`](silent-dictate.md) for the
+CLI flags, per-stage latency contract, JSONL schema, and the
+`keep_camera_open` privacy trade-off. `--dry-run` prints the cleaned
+text to stdout instead of pasting, so you can iterate on the pipeline
+without a typing target.
+
+## Audio dictation (TICKET-012)
+
+`python -m sabi dictate` is the audio counterpart to `silent-dictate`:
+speak into the microphone (push-to-talk or VAD streaming), the pipeline
+runs faster-whisper ASR + Ollama cleanup, and pastes into the focused
+window. PTT holds utterances behind a 1.5 s force-paste window (F12 by
+default); VAD auto-pastes by default because the stream cannot pause.
+See [`docs/audio-dictate.md`](audio-dictate.md) for the full flag list,
+the mode-specific force-paste policy (`force_paste_mode_ptt` /
+`force_paste_mode_vad`), latency contract, and JSONL schema. Use
+`--ptt-open-per-trigger` to reopen the microphone per PTT press
+(privacy-oriented) or leave it off for snappier latency.
 
 ## Dependency notes (vs ticket text)
 

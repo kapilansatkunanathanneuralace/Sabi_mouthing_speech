@@ -1,0 +1,79 @@
+# Audio-dictation pipeline config (TICKET-012).
+#
+# Loaded by sabi.pipelines.audio_dictate.load_audio_dictate_config(). All
+# sections and all keys are optional; anything missing falls back to the
+# per-module defaults (MicConfig, ASRModelConfig, CleanupConfig,
+# InjectConfig, HotkeyConfig) plus the pipeline-level defaults defined on
+# AudioDictateConfig. See docs/audio-dictate.md for the end-to-end flow,
+# latency budget, and JSONL schema.
+
+[mic]
+# Keep in sync with `python -m sabi mic-preview` (TICKET-006). Leave
+# device_index unset to use the system default input.
+sample_rate = 16000
+frame_ms = 20
+vad_aggressiveness = 2
+min_utterance_ms = 300
+max_utterance_ms = 15000
+trailing_silence_ms = 400
+
+[asr]
+# "auto" picks CUDA when available. Override per-run with --force-cpu.
+# Roadmap MVP uses faster-whisper "small"; bump to "medium" for Phase 2.
+model_size = "small"
+device = "auto"
+language = "en"
+beam_size = 1
+
+[cleanup]
+# Ollama reuses its own timeouts/bypass behavior (TICKET-008). Point at
+# a different host / model here if you run cleanup on a separate box.
+base_url = "http://127.0.0.1:11434"
+model = "llama3.2:3b-instruct-q4_K_M"
+
+[inject]
+# Paste tuning (TICKET-009). Slack needs >=15 ms paste_delay_ms.
+paste_delay_ms = 15
+restore_delay_ms = 400
+
+[hotkey]
+# mode is auto-coerced to match [pipeline].trigger_mode (push_to_talk ->
+# "push_to_talk", vad -> "toggle") so you can leave it unset. Must differ
+# from pipeline.force_paste_binding below.
+mode = "push_to_talk"
+binding = "ctrl+alt+space"
+min_hold_ms = 80
+cooldown_ms = 150
+
+[pipeline]
+# push_to_talk: hold the chord to record one utterance (mirrors
+# silent-dictate). vad: press the chord to start VAD streaming, press
+# again to stop. See docs/audio-dictate.md for the full trade-off.
+trigger_mode = "push_to_talk"
+# Withhold paste when ASRResult.confidence is below this floor.
+confidence_floor = 0.40
+# Discard utterances with a VAD-coverage below this fraction (mostly
+# silence). 0.0 accepts everything; 1.0 requires the entire segment to
+# be speech.
+vad_coverage_floor = 0.5
+# Force-paste chord + wait window. Listener = withhold low-confidence
+# utterances for force_paste_window_ms and paste them only if the user
+# taps this chord; always = paste regardless of confidence; never =
+# silently discard low-confidence utterances. Separate fields let you
+# tune PTT vs VAD independently (VAD cannot reliably "hold" utterances
+# so the default is "always").
+force_paste_binding = "f12"
+force_paste_window_ms = 1500
+force_paste_mode_ptt = "listener"
+force_paste_mode_vad = "always"
+# ptt_open_per_trigger = true re-opens the microphone on every PTT
+# trigger (privacy-oriented, mirrors silent-dictate's per-trigger camera
+# lifecycle). Leave false to preopen on __enter__ for snappier latency.
+ptt_open_per_trigger = false
+# dry_run prints the cleaned text to stdout instead of pasting. The
+# --dry-run CLI flag also flips InjectConfig.dry_run so paste_text never
+# fires Ctrl+V.
+dry_run = false
+# Label used in reports/latency-log.md rows. Override on non-Windows
+# hosts (e.g. "wsl", "macos") so the eval harness can group runs.
+hardware_label = "windows"

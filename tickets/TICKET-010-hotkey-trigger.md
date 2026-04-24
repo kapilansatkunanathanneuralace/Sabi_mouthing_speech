@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Injection
 Estimate: S
 Depends on: TICKET-002
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -46,12 +46,21 @@ No new additions.
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi hotkey-debug` prints `[TRIGGER START]` on Ctrl+Alt+Space press and `[TRIGGER STOP]` on release (push-to-talk mode). Toggle mode (via `--mode toggle`) fires start on press #1, stop on press #2.
-- [ ] Holding the hotkey for 50 ms does not fire `on_start` (under `min_hold_ms`).
-- [ ] Two successful presses within `cooldown_ms` only produce one trigger.
-- [ ] CLI-driven triggers and real key triggers both emit `TriggerEvent` with the same fields; only `reason` differs.
-- [ ] Cleaning up (context exit) removes the hook - pressing Ctrl+Alt+Space after exit does not print anything.
-- [ ] Unit tests pass with the monkeypatched `keyboard` layer; tests do not require the real hook.
+- [x] `python -m sabi hotkey-debug` prints `[TRIGGER START]` on Ctrl+Alt+Space press and `[TRIGGER STOP]` on release (push-to-talk mode). Toggle mode (via `--mode toggle`) fires start on press #1, stop on press #2. *(CLI wired in `src/sabi/cli.py` calling `sabi.input.run_hotkey_debug`. `test_ptt_emits_start_after_min_hold_and_stop_on_release` and `test_toggle_alternating_presses_start_then_stop` cover the behavior with a faked `keyboard` module; live verification is a human step on a machine with the Windows hook available.)*
+- [x] Holding the hotkey for 50 ms does not fire `on_start` (under `min_hold_ms`). *(`test_ptt_short_tap_does_not_fire_start` with `min_hold_ms=200` and a 50 ms hold asserts no events are emitted.)*
+- [x] Two successful presses within `cooldown_ms` only produce one trigger. *(`test_ptt_cooldown_suppresses_second_start` with `cooldown_ms=1000` fires the chord twice and asserts only a single start/stop pair.)*
+- [x] CLI-driven triggers and real key triggers both emit `TriggerEvent` with the same fields; only `reason` differs. *(`TriggerBus.fire_start_cli` / `fire_stop_cli` return events with `reason="cli"`; `test_fire_cli_events_share_contract` asserts the payload matches the hotkey-origin events field-for-field apart from `reason`.)*
+- [x] Cleaning up (context exit) removes the hook - pressing Ctrl+Alt+Space after exit does not print anything. *(`HotkeyController.stop()` calls the remover returned by every `on_press_key` / `on_release_key` / `add_hotkey` registration and joins the bus worker; `test_stop_removes_hooks_and_joins_worker` verifies the callback lists are empty after `stop()`. An `atexit` weakref fallback runs the same cleanup if the context manager is bypassed.)*
+- [x] Unit tests pass with the monkeypatched `keyboard` layer; tests do not require the real hook. *(11 tests in `tests/test_hotkey.py`; the full suite now runs 94 tests with no real Windows hook interaction.)*
+
+## Implementation notes
+
+- New files: `configs/hotkey.toml`, `src/sabi/input/__init__.py`, `src/sabi/input/hotkey.py`, `scripts/hotkey_debug.py`, `tests/test_hotkey.py`, `docs/hotkey.md`.
+- Edited files: `src/sabi/cli.py` (`hotkey-debug` command), `docs/INSTALL.md` (brief cross-link).
+- The bundled `keyboard` package cannot attach two `add_hotkey` callbacks to the same chord string (the second registration overwrites the first, upstream TODO). Push-to-talk is therefore implemented with `on_press_key` + `on_release_key` on the trigger key plus `on_release_key` on each modifier, using `keyboard.is_pressed(binding)` as the authoritative chord check. Toggle mode uses a single `add_hotkey` call since it does not need paired press / release hooks.
+- `TriggerBus` is a thread-safe queue with a dedicated daemon worker thread; subscriber callbacks always run on the bus worker, never on the Windows hook thread. Exceptions in a subscriber are logged and swallowed so one bad consumer cannot stall the bus.
+- `HotkeyController.__init__` accepts a `keyboard_module` injection seam so the test suite can drive the controller with a `FakeKeyboard` stand-in and never import the real hook.
+- Full suite: 94 passed (`pytest -q`), up from 83 after TICKET-009.
 
 ## Out of scope
 

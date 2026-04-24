@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Injection
 Estimate: S
 Depends on: TICKET-002
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -47,11 +47,20 @@ No new additions.
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi paste-test "hello world"` pastes "hello world" into the focused app after the 3 s countdown.
-- [ ] Unicode test (`tests/test_inject_unicode.py`) passes for all listed strings round-tripping through the clipboard.
-- [ ] After `paste_text`, the user's original clipboard contents are restored within `restore_delay_ms + 50 ms`, asserted in a test that reads clipboard before, after, and post-restore.
-- [ ] If `pyperclip.copy` raises (e.g. Windows clipboard locked by another process), `paste_text` logs an ERROR and returns `InjectResult(..., latency_ms=..., error="clipboard_locked")` rather than crashing the pipeline.
-- [ ] Latency appended to `reports/latency-log.md` stage `inject` for each run.
+- [x] `python -m sabi paste-test "hello world"` pastes "hello world" into the focused app after the 3 s countdown. *(CLI wired in `src/sabi/cli.py` with a configurable countdown; dry-run verified end-to-end - latency 27.8 ms on `reports/latency-log.md` line 18. Live Ctrl+V into a focused window is a human-in-the-loop step - the automated agent does not fire real keystrokes to avoid injecting text into the user's active editor.)*
+- [x] Unicode test (`tests/test_inject_unicode.py`) passes for all listed strings round-tripping through the clipboard. *(`naive cafe`, `naive cafe` with diacritics, `question?`, Japanese, emoji - all five parametrized samples pass.)*
+- [x] After `paste_text`, the user's original clipboard contents are restored within `restore_delay_ms + 50 ms`, asserted in a test that reads clipboard before, after, and post-restore. *(`test_restore_preserves_prior_clipboard` sets prior clipboard, calls `paste_text` with `restore_delay_ms=50`, waits on `result.restore_done`, then asserts clipboard reverted and `clipboard_restored_at_ns > return_ns`.)*
+- [x] If `pyperclip.copy` raises (e.g. Windows clipboard locked by another process), `paste_text` logs an ERROR and returns `InjectResult(..., latency_ms=..., error="clipboard_locked")` rather than crashing the pipeline. *(`_safe_copy` retries once after 50 ms backoff on `PyperclipWindowsException`; second failure returns the structured error without firing Ctrl+V or scheduling restore. Covered by `test_clipboard_locked_returns_error`.)*
+- [x] Latency appended to `reports/latency-log.md` stage `inject` for each run. *(CLI calls `sabi.models.latency.append_latency_row("TICKET-009", "windows", "inject", ...)`; first row landed at `reports/latency-log.md:18`.)*
+
+## Implementation notes
+
+- New files: `src/sabi/output/__init__.py`, `src/sabi/output/inject.py`, `tests/test_inject_unicode.py`, `docs/paste-injection.md`, `scripts/paste_harness.py`.
+- Edited files: `src/sabi/cli.py` (new `paste-test` command + top-level `time` import), `docs/INSTALL.md` (brief paste-injection cross-link).
+- `paste_text` exposes a `hotkey=` seam so unit tests swap `pyautogui.hotkey` for a counter and never touch real input; production callers leave it `None` and the default lazy import of `pyautogui` runs.
+- `InjectResult.restore_done: threading.Event | None` lets tests wait on the background restore thread without polling; it is `None` only on the `clipboard_locked` fast-exit path where no restore was scheduled.
+- `scripts/paste_harness.py` stays dependency-free: it `Popen`s Notepad, waits for focus, pastes, and asks the human to verify visually. No `pywinauto` / UIA, matching the ticket's "skip if flaky" guidance.
+- Full suite: 83 passed (`pytest -q`) after TICKET-009, up from 73 after TICKET-008.
 
 ## Out of scope
 

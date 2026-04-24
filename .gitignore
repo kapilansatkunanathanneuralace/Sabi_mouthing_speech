@@ -35,6 +35,8 @@ htmlcov/
 # Data / eval artifacts (large)
 data/eval/*.wav
 data/eval/*.mp4
+# ASR smoke fixture wav is user-local (see data/fixtures/asr/README.md)
+data/fixtures/asr/*.wav
 
 # Model weights (downloaded on first run, large binaries)
 data/models/

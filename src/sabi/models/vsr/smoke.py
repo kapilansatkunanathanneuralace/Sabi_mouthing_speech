@@ -17,12 +17,10 @@ import numpy as np
 import torch
 
 from sabi.capture.lip_roi import LipROIConfig, LipROIDetector
+from sabi.models.latency import append_latency_row
 from sabi.models.vsr.model import VSRModel, VSRModelConfig, VSRResult
 
 logger = logging.getLogger(__name__)
-
-REPO_ROOT = Path(__file__).resolve().parents[4]
-LATENCY_LOG = REPO_ROOT / "reports" / "latency-log.md"
 
 
 def _decode_lip_frames(
@@ -51,26 +49,6 @@ def _decode_lip_frames(
     finally:
         cap.release()
     return crops, float(fps)
-
-
-def _append_latency_row(
-    hardware: str,
-    latency_ms: float,
-    samples: int,
-    notes: str,
-) -> None:
-    LATENCY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    if not LATENCY_LOG.exists():
-        LATENCY_LOG.write_text(
-            "# Latency log\n\n"
-            "Append one row per pipeline run (see tickets/README.md).\n\n"
-            "| ticket | hardware | stage | p50_ms | p95_ms | samples | notes |\n"
-            "| --- | --- | --- | --- | --- | --- | --- |\n",
-            encoding="utf-8",
-        )
-    row = f"| TICKET-005 | {hardware} | vsr-smoke | {latency_ms:.1f} | - | {samples} | {notes} |\n"
-    with LATENCY_LOG.open("a", encoding="utf-8") as f:
-        f.write(row)
 
 
 def _wer(reference: str, hypothesis: str) -> float | None:
@@ -113,7 +91,14 @@ def run_vsr_smoke(
 
     hardware = "cuda" if torch.cuda.is_available() else "cpu"
     notes = f"video={video_path.name} fps={fps:.1f}"
-    _append_latency_row(hardware, result.latency_ms, len(crops), notes)
+    append_latency_row(
+        "TICKET-005",
+        hardware,
+        "vsr-smoke",
+        result.latency_ms,
+        len(crops),
+        notes,
+    )
 
     print(f"text     : {result.text!r}")
     print(f"frames   : {len(crops)}")

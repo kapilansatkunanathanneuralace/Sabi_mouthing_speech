@@ -9,7 +9,6 @@ A **local, multimodal PoC** that turns spoken **or** silently mouthed input into
 Work is tracked as numbered tickets in [`tickets/README.md`](tickets/README.md). Product vision, phases, and the fusion roadmap live in [`project_roadmap.md`](project_roadmap.md).
 
 > **New to the repo?** Read [`docs/ONBOARDING.md`](docs/ONBOARDING.md) first. It covers setup, a folder-by-folder reference, and a code walkthrough of how an utterance flows through each layer.
-
 ## Status at a glance
 
 | Area | State | Entry point |

@@ -125,6 +125,11 @@ side:
 - `cleanup_prompt`, `cleanup_fallback`, `cleanup_reason`: whether Ollama cleanup ran or fell back to raw text.
 - `flags`: compact warnings like `high_conf_high_wer`, `asr_vsr_disagree`, `cleanup_fallback`, `low_face_ratio`, `low_vad_coverage`, or `low_audio_peak`.
 
+Fused `confidence` is calibrated. It is lower when ASR and VSR disagree, when
+alignment is weak, or when only one modality produced text. A remaining
+`high_conf_high_wer` flag means the system was still very confident despite a
+bad transcript, usually because both modalities agreed on the wrong phrase.
+
 ## 6. What The Results Mean
 
 This dataset does not automatically change the live pipeline. There is no extra

@@ -4,7 +4,7 @@ Phase: 2 - Fusion & polish
 Epic: Fusion
 Estimate: M
 Depends on: TICKET-016, TICKET-017, TICKET-020, TICKET-030
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -40,11 +40,11 @@ None new.
 
 ## Acceptance criteria
 
-- [ ] Fused confidence no longer returns `1.00` for clear ASR/VSR disagreement in unit tests.
-- [ ] Personal fused eval report exposes confidence values that are meaningfully lower on known severe failures.
-- [ ] Paste gating can use the calibrated confidence without increasing false-positive paste risk.
-- [ ] Calibration behavior is documented in `docs/fusion.md` or `docs/FUSED_EVAL.md`.
-- [ ] Unit tests cover agreement, disagreement, and missing-modality confidence behavior.
+- [x] Fused confidence no longer returns `1.00` for clear ASR/VSR disagreement in unit tests.
+- [x] Personal fused eval report exposes confidence values that are meaningfully lower on known severe failures.
+- [x] Paste gating can use the calibrated confidence without increasing false-positive paste risk.
+- [x] Calibration behavior is documented in `docs/fusion.md` or `docs/FUSED_EVAL.md`.
+- [x] Unit tests cover agreement, disagreement, and missing-modality confidence behavior.
 
 ## Out of scope
 

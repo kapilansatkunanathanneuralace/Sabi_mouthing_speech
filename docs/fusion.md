@@ -56,7 +56,7 @@ If one source is empty, mode resolution is skipped:
 | Field | Meaning |
 | --- | --- |
 | `text` | Final fused transcript. |
-| `confidence` | Mean confidence of emitted words, clamped to `[0, 1]`. |
+| `confidence` | Calibrated fused confidence, clamped to `[0, 1]`. |
 | `source_weights` | Share of emitted words from ASR and VSR. `both` counts half toward each. |
 | `per_word_origin` | One entry per output word: `"asr"`, `"vsr"`, or `"both"`. |
 | `per_word_confidence` | Confidence used for each output word. |
@@ -71,6 +71,23 @@ The combiner tokenizes on whitespace, normalizes tokens to lowercase for alignme
 When aligned words match case-insensitively, origin is `both` and the output uses the primary source surface form. When they disagree, the higher per-word confidence wins. If confidence is tied within `tie_epsilon`, the primary source or `tie_breaker` wins. Unaligned insertions are kept only from the primary source.
 
 If the matched alignment ratio is below `min_alignment_ratio`, the combiner returns the higher-confidence source verbatim. This avoids unstable mixed sentences when ASR and VSR disagree wildly.
+
+## Confidence Calibration
+
+`FusedResult.confidence` is intentionally more conservative than the raw model
+confidence. The live fused pipeline uses this value for paste gating, so it
+should be honest about disagreement.
+
+Rules:
+
+- Full ASR/VSR agreement keeps the emitted word confidence.
+- Partial disagreement lowers confidence based on how many output words came from `both`.
+- Low alignment lowers confidence further before returning one source verbatim.
+- Missing ASR or missing VSR is capped at `0.85`, even if the surviving model reports `1.0`.
+- A `1.00` fused confidence should only happen when both modalities agree and the underlying confidences support it.
+
+The original per-word model scores are still exposed as `per_word_confidence`;
+the final `confidence` is the calibrated score used by downstream decisions.
 
 ## Worked Example
 

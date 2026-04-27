@@ -99,6 +99,29 @@ class BadFakeASR:
         )
 
 
+class SameWrongFakeVSR:
+    def predict(self, frames: list[LipFrame]) -> VSRResult:
+        assert frames
+        return VSRResult(
+            text="wrong phrase",
+            confidence=1.0,
+            per_token_scores=None,
+            latency_ms=12.0,
+        )
+
+
+class SameWrongFakeASR:
+    def transcribe(self, _utt: Any) -> ASRResult:
+        return ASRResult(
+            text="wrong phrase",
+            segments=[],
+            confidence=1.0,
+            latency_ms=22.0,
+            language="en",
+            device="cpu",
+        )
+
+
 class FakeCleaner:
     def __init__(self, *, fallback: bool = False) -> None:
         self.fallback = fallback
@@ -316,8 +339,8 @@ def test_run_eval_flags_fused_high_confidence_failures(tmp_path: Path) -> None:
     video_frames = [(0, np.zeros((32, 32, 3), dtype=np.uint8))]
     fused = FusedOfflineRunner(
         lip_roi_factory=lambda _cfg: _Ctx(FakeROI()),
-        vsr_factory=lambda _cfg: _Ctx(BadFakeVSR()),
-        asr_factory=lambda _cfg: _Ctx(BadFakeASR()),
+        vsr_factory=lambda _cfg: _Ctx(SameWrongFakeVSR()),
+        asr_factory=lambda _cfg: _Ctx(SameWrongFakeASR()),
         cleaner_factory=lambda _cfg: _Ctx(FakeCleaner(fallback=True)),
         video_loader=lambda _path: video_frames,
     )
@@ -336,9 +359,37 @@ def test_run_eval_flags_fused_high_confidence_failures(tmp_path: Path) -> None:
 
     report = result.report_path.read_text(encoding="utf-8")
     assert "high_conf_high_wer" in report
-    assert "asr_vsr_disagree" in report
     assert "cleanup_fallback" in report
     assert "ollama_unavailable" in report
+
+
+def test_run_eval_lowers_confidence_for_fused_disagreement(tmp_path: Path) -> None:
+    _phrases_path, _video, _audio = _write_dataset(tmp_path / "dataset", text="hello world")
+    video_frames = [(0, np.zeros((32, 32, 3), dtype=np.uint8))]
+    fused = FusedOfflineRunner(
+        lip_roi_factory=lambda _cfg: _Ctx(FakeROI()),
+        vsr_factory=lambda _cfg: _Ctx(BadFakeVSR()),
+        asr_factory=lambda _cfg: _Ctx(BadFakeASR()),
+        cleaner_factory=lambda _cfg: _Ctx(FakeCleaner()),
+        video_loader=lambda _path: video_frames,
+    )
+
+    result = run_eval(
+        EvalConfig(
+            dataset_path=tmp_path / "dataset",
+            runs=1,
+            warmups=0,
+            pipeline="fused",
+            out_path=tmp_path / "report.md",
+            latency_log_path=tmp_path / "latency-log.md",
+        ),
+        fused_runner=fused,
+    )
+
+    report = result.report_path.read_text(encoding="utf-8")
+    assert result.records[0].event.confidence < 0.95
+    assert "asr_vsr_disagree" in report
+    assert "high_conf_high_wer" not in report
 
 
 def test_run_eval_reports_fused_cleanup_fallback_reason(tmp_path: Path) -> None:

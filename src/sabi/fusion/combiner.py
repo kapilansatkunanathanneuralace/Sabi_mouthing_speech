@@ -84,9 +84,23 @@ def combine(
     if not asr_stream.surface and not vsr_stream.surface:
         return _empty_result(cfg.mode, "both empty", 0.0)
     if not asr_stream.surface:
-        return _verbatim_result(vsr_stream, "vsr_primary", "asr empty", 0.0, "vsr")
+        return _verbatim_result(
+            vsr_stream,
+            "vsr_primary",
+            "asr empty",
+            0.0,
+            "vsr",
+            confidence_cap=0.85,
+        )
     if not vsr_stream.surface:
-        return _verbatim_result(asr_stream, "audio_primary", "vsr empty", 0.0, "asr")
+        return _verbatim_result(
+            asr_stream,
+            "audio_primary",
+            "vsr empty",
+            0.0,
+            "asr",
+            confidence_cap=0.85,
+        )
 
     start = time.perf_counter()
     mode_used, mode_reason = _resolve_mode(cfg, asr, vsr, asr_stream)
@@ -100,6 +114,7 @@ def combine(
                 "alignment_below_threshold",
                 _elapsed_ms(start),
                 "asr",
+                confidence_multiplier=_low_alignment_confidence_multiplier(aligned_ratio),
             )
         else:
             result = _verbatim_result(
@@ -108,6 +123,7 @@ def combine(
                 "alignment_below_threshold",
                 _elapsed_ms(start),
                 "vsr",
+                confidence_multiplier=_low_alignment_confidence_multiplier(aligned_ratio),
             )
         return result
 
@@ -147,7 +163,7 @@ def combine(
 
     return FusedResult(
         text=" ".join(words),
-        confidence=_mean_confidence(confidences),
+        confidence=_calibrated_confidence(confidences, origins),
         source_weights=_source_weights(origins),
         per_word_origin=origins,
         per_word_confidence=[_clamp01(c) for c in confidences],
@@ -312,11 +328,15 @@ def _verbatim_result(
     mode_reason: str,
     latency_ms: float,
     source: Literal["asr", "vsr"],
+    *,
+    confidence_multiplier: float = 1.0,
+    confidence_cap: float = 1.0,
 ) -> FusedResult:
     origins: list[WordOrigin] = [source for _ in stream.surface]
+    confidence = _mean_confidence(stream.confidence) * confidence_multiplier
     return FusedResult(
         text=" ".join(stream.surface),
-        confidence=_mean_confidence(stream.confidence),
+        confidence=min(_clamp01(confidence), confidence_cap),
         source_weights=_source_weights(origins),
         per_word_origin=origins,
         per_word_confidence=[_clamp01(c) for c in stream.confidence],
@@ -343,6 +363,19 @@ def _mean_confidence(values: list[float]) -> float:
     if not values:
         return 0.0
     return _clamp01(sum(values) / len(values))
+
+
+def _calibrated_confidence(values: list[float], origins: list[WordOrigin]) -> float:
+    base = _mean_confidence(values)
+    if not origins:
+        return 0.0
+    agreement_ratio = sum(1 for origin in origins if origin == "both") / len(origins)
+    multiplier = 0.65 + (0.35 * agreement_ratio)
+    return _clamp01(base * multiplier)
+
+
+def _low_alignment_confidence_multiplier(aligned_ratio: float) -> float:
+    return 0.45 + (0.5 * _clamp01(aligned_ratio))
 
 
 def _source_weights(origins: list[WordOrigin]) -> dict[str, float]:

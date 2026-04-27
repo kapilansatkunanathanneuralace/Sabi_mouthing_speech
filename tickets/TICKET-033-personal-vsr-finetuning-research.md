@@ -4,7 +4,7 @@ Phase: 3 - Personalization research
 Epic: VSR
 Estimate: M
 Depends on: TICKET-019, TICKET-020, TICKET-030
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -43,11 +43,11 @@ No new packages unless the upstream training path requires them. Any proposed ad
 
 ## Acceptance criteria
 
-- [ ] `docs/PERSONAL_VSR_FINETUNING.md` explains whether Chaplin/Auto-AVSR fine-tuning is feasible in this repo.
-- [ ] The document lists required data format, dataset size estimate, GPU/runtime expectations, and risks.
-- [ ] The document recommends one of: proceed with fine-tuning, collect more data first, only tune fusion/config, or defer.
-- [ ] If a tiny dry-run was possible, the command and outcome are documented.
-- [ ] No training dependencies are added unless explicitly justified and documented.
+- [x] `docs/PERSONAL_VSR_FINETUNING.md` explains whether Chaplin/Auto-AVSR fine-tuning is feasible in this repo.
+- [x] The document lists required data format, dataset size estimate, GPU/runtime expectations, and risks.
+- [x] The document recommends one of: proceed with fine-tuning, collect more data first, only tune fusion/config, or defer.
+- [x] If a tiny dry-run was possible, the command and outcome are documented.
+- [x] No training dependencies are added unless explicitly justified and documented.
 
 ## Out of scope
 

@@ -20,3 +20,11 @@ tie_breaker = "asr"
 
 # Avoid stitched "Frankenstein" output when transcripts barely align.
 min_alignment_ratio = 0.5
+
+# Low-alignment escape hatch (TICKET-038). Only applies when mode = "auto"
+# and aligned_ratio < min_alignment_ratio. Default keeps current behavior
+# (pick the higher-confidence side verbatim). Set to "audio_primary" or
+# "vsr_primary" to force one side on low alignment only - this is NOT a
+# global mode override (use the mode field for that).
+# Options: "higher_confidence" | "audio_primary" | "vsr_primary"
+low_alignment_fallback = "higher_confidence"

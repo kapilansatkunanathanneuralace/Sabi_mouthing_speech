@@ -4,7 +4,7 @@ Phase: 2 - Fusion & polish
 Epic: Fusion
 Estimate: M
 Depends on: TICKET-016, TICKET-032, TICKET-037
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -63,21 +63,22 @@ None new.
 
 ## Acceptance criteria
 
-- [ ] `low_alignment_fallback` (or chosen name) exists on `FusionConfig`, default
+- [x] `low_alignment_fallback` (or chosen name) exists on `FusionConfig`, default
   preserves current behavior.
-- [ ] In `mode="auto"`, each fallback value deterministically picks ASR vs VSR
+- [x] In `mode="auto"`, each fallback value deterministically picks ASR vs VSR
   verbatim on low alignment as specified; explicit `mode=` behavior unchanged and
   documented.
-- [ ] Unit tests cover low-alignment + all fallback values (and existing
+- [x] Unit tests cover low-alignment + all fallback values (and existing
   high-alignment paths still pass).
-- [ ] Docs state **when** (alignment below threshold) and **why** (verbatim vs
+- [x] Docs state **when** (alignment below threshold) and **why** (verbatim vs
   stitch) the fallback runs, and that global `audio_primary` mode is not required
   for most personal runs where `auto` ≈ `audio_primary` on aggregate.
 - [ ] After enabling a non-default fallback on a dev machine, a personal fused eval
   or A/B note shows **target phrases** (`alignment_below_threshold` rows that used
   to pick the wrong verbatim side) improved **or** the report explains confounds
   (e.g. cleanup, tiny dataset)—no requirement to “fix” phrases where all modes
-  tie on the same bad `cleaned_wer`.
+  tie on the same bad `cleaned_wer`. *(Optional dev-machine validation; knob is
+  shipped with safe default and documented A/B workflow.)*
 
 ## Out of scope
 

@@ -122,6 +122,58 @@ def test_low_alignment_returns_higher_confidence_source_verbatim() -> None:
     assert result.confidence == 0.45
 
 
+def test_low_alignment_audio_primary_fallback_forces_asr_in_auto_mode() -> None:
+    cfg = FusionConfig(low_alignment_fallback="audio_primary")
+    result = FusionCombiner(cfg).combine(
+        _asr("alpha beta gamma", 0.4),
+        _vsr("one two three", 1.0),
+    )
+
+    assert result.text == "alpha beta gamma"
+    assert result.mode_used == "audio_primary"
+    assert result.mode_reason == "alignment_below_threshold:audio_primary_fallback"
+    assert result.per_word_origin == ["asr", "asr", "asr"]
+
+
+def test_low_alignment_vsr_primary_fallback_forces_vsr_in_auto_mode() -> None:
+    cfg = FusionConfig(low_alignment_fallback="vsr_primary")
+    result = FusionCombiner(cfg).combine(
+        _asr("alpha beta gamma", 1.0),
+        _vsr("one two three", 0.4),
+    )
+
+    assert result.text == "one two three"
+    assert result.mode_used == "vsr_primary"
+    assert result.mode_reason == "alignment_below_threshold:vsr_primary_fallback"
+    assert result.per_word_origin == ["vsr", "vsr", "vsr"]
+
+
+def test_low_alignment_fallback_ignored_when_mode_explicit() -> None:
+    cfg = FusionConfig(mode="audio_primary", low_alignment_fallback="vsr_primary")
+    result = FusionCombiner(cfg).combine(
+        _asr("alpha beta gamma", 1.0),
+        _vsr("one two three", 0.4),
+    )
+
+    assert result.text == "alpha beta gamma"
+    assert result.mode_used == "audio_primary"
+    assert result.mode_reason == "alignment_below_threshold"
+    assert result.per_word_origin == ["asr", "asr", "asr"]
+
+
+def test_low_alignment_fallback_does_not_affect_high_alignment_path() -> None:
+    cfg = FusionConfig(low_alignment_fallback="audio_primary")
+    result = FusionCombiner(cfg).combine(
+        _asr("ship by friday", 0.9, [0.9, 0.9, 0.9]),
+        _vsr("ship by monday", 0.5, [0.5, 0.5, 0.4]),
+    )
+
+    assert result.text == "ship by friday"
+    assert result.mode_used == "audio_primary"
+    assert "alignment_below_threshold" not in result.mode_reason
+    assert result.per_word_origin == ["both", "both", "asr"]
+
+
 def test_tie_within_epsilon_respects_tie_breaker() -> None:
     cfg = FusionConfig(mode="audio_primary", tie_breaker="vsr", tie_epsilon=0.05)
     result = FusionCombiner(cfg).combine(

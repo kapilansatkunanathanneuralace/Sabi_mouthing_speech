@@ -156,6 +156,27 @@ The report includes:
 Do **not** change the live fusion default based on a single run; use this report as evidence, then let TICKET-038
 decide the policy change after you have a repeatable pattern on your dataset.
 
+### Low-alignment fallback (TICKET-038)
+
+TICKET-037 evidence (e.g. `reports/fusion-mode-ab-personal.md`) showed `auto` and `audio_primary` were
+equivalent on the personal dataset, while `vsr_primary` was catastrophic in aggregate. The takeaway is
+**not** "switch the app to global `audio_primary`" - that would defeat the point of fused / VSR-led
+behavior on devices and users where it does help.
+
+Instead, TICKET-038 adds `FusionConfig.low_alignment_fallback`, a knob that **only** affects the
+low-alignment verbatim branch (when `aligned_ratio < min_alignment_ratio`) and **only** when
+`mode = "auto"`:
+
+- `"higher_confidence"` (default): unchanged behavior; ship as-is.
+- `"audio_primary"`: when alignment is too weak to stitch, return ASR verbatim instead of the
+  higher-confidence side. Useful when your dataset shows VSR "winning" overall confidence on
+  `alignment_below_threshold` rows but ASR text is consistently closer.
+- `"vsr_primary"`: same shape, forcing VSR verbatim on low alignment.
+
+Set it via `configs/fusion.toml`. Explicit `mode = "audio_primary"` / `mode = "vsr_primary"` ignore the
+knob and keep historical behavior, so this is purely an `auto` mode escape hatch. Validate with another
+`eval-fusion-modes` run on the same dataset before promoting any non-default value.
+
 ## 4. Optional Cleanup Prompt A/B
 
 To compare cleanup prompts on the same fused dataset:

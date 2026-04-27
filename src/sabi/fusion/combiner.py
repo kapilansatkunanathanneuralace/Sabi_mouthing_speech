@@ -17,6 +17,7 @@ from sabi.models.vsr.model import VSRResult
 
 FusionMode = Literal["auto", "audio_primary", "vsr_primary"]
 WordOrigin = Literal["asr", "vsr", "both"]
+LowAlignmentFallback = Literal["higher_confidence", "audio_primary", "vsr_primary"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "fusion.toml"
@@ -32,6 +33,7 @@ class FusionConfig(BaseModel):
     tie_epsilon: float = Field(default=0.02, ge=0.0, le=1.0)
     tie_breaker: Literal["asr", "vsr"] = "asr"
     min_alignment_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+    low_alignment_fallback: LowAlignmentFallback = "higher_confidence"
 
 
 @dataclass(frozen=True)
@@ -107,25 +109,15 @@ def combine(
     alignment = _align(asr_stream.normalized, vsr_stream.normalized)
     aligned_ratio = _alignment_ratio(alignment, asr_stream.normalized, vsr_stream.normalized)
     if aligned_ratio < cfg.min_alignment_ratio:
-        if _overall_confidence(asr) >= _overall_confidence(vsr):
-            result = _verbatim_result(
-                asr_stream,
-                "audio_primary",
-                "alignment_below_threshold",
-                _elapsed_ms(start),
-                "asr",
-                confidence_multiplier=_low_alignment_confidence_multiplier(aligned_ratio),
-            )
-        else:
-            result = _verbatim_result(
-                vsr_stream,
-                "vsr_primary",
-                "alignment_below_threshold",
-                _elapsed_ms(start),
-                "vsr",
-                confidence_multiplier=_low_alignment_confidence_multiplier(aligned_ratio),
-            )
-        return result
+        return _low_alignment_pick(
+            cfg=cfg,
+            asr=asr,
+            vsr=vsr,
+            asr_stream=asr_stream,
+            vsr_stream=vsr_stream,
+            aligned_ratio=aligned_ratio,
+            start=start,
+        )
 
     words: list[str] = []
     origins: list[WordOrigin] = []
@@ -374,6 +366,69 @@ def _calibrated_confidence(values: list[float], origins: list[WordOrigin]) -> fl
     return _clamp01(base * multiplier)
 
 
+def _low_alignment_pick(
+    *,
+    cfg: FusionConfig,
+    asr: ASRResult | None,
+    vsr: VSRResult | None,
+    asr_stream: _TokenStream,
+    vsr_stream: _TokenStream,
+    aligned_ratio: float,
+    start: float,
+) -> FusedResult:
+    """Pick verbatim ASR or VSR when transcripts barely align.
+
+    The configurable :attr:`FusionConfig.low_alignment_fallback` knob only
+    applies when ``cfg.mode == "auto"``. Explicit ``audio_primary`` /
+    ``vsr_primary`` modes keep the historical higher-confidence pick so
+    forced modes stay predictable. See TICKET-038.
+    """
+
+    if cfg.mode == "auto":
+        policy: LowAlignmentFallback = cfg.low_alignment_fallback
+    else:
+        policy = "higher_confidence"
+
+    multiplier = _low_alignment_confidence_multiplier(aligned_ratio)
+
+    if policy == "audio_primary":
+        return _verbatim_result(
+            asr_stream,
+            "audio_primary",
+            "alignment_below_threshold:audio_primary_fallback",
+            _elapsed_ms(start),
+            "asr",
+            confidence_multiplier=multiplier,
+        )
+    if policy == "vsr_primary":
+        return _verbatim_result(
+            vsr_stream,
+            "vsr_primary",
+            "alignment_below_threshold:vsr_primary_fallback",
+            _elapsed_ms(start),
+            "vsr",
+            confidence_multiplier=multiplier,
+        )
+
+    if _overall_confidence(asr) >= _overall_confidence(vsr):
+        return _verbatim_result(
+            asr_stream,
+            "audio_primary",
+            "alignment_below_threshold",
+            _elapsed_ms(start),
+            "asr",
+            confidence_multiplier=multiplier,
+        )
+    return _verbatim_result(
+        vsr_stream,
+        "vsr_primary",
+        "alignment_below_threshold",
+        _elapsed_ms(start),
+        "vsr",
+        confidence_multiplier=multiplier,
+    )
+
+
 def _low_alignment_confidence_multiplier(aligned_ratio: float) -> float:
     return 0.45 + (0.5 * _clamp01(aligned_ratio))
 
@@ -410,6 +465,7 @@ __all__ = [
     "FusionCombiner",
     "FusionConfig",
     "FusionMode",
+    "LowAlignmentFallback",
     "combine",
     "load_fusion_config",
 ]

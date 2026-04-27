@@ -97,3 +97,22 @@ Append one row per pipeline run (see tickets/README.md).
 | TICKET-014 | windows | fused:total_ms | 5339.5 | 5614.9 | 20 | pipeline=fused stage=total_ms |
 | TICKET-014 | windows | fused:vsr_ms | 1260.6 | 1446.5 | 20 | pipeline=fused stage=vsr_ms |
 | TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=warmup_ms |
+| TICKET-017 | windows | pipeline | 13888.0 | - | 1 | decision=dry_run confidence=0.56 fusion=alignment_below_threshold prompt=v1 fallback=True [cap=5134 roi=1516 vsr=2595 asr=165 fusion=0.1 clean=803 inject=0] |
+| TICKET-017 | windows | pipeline | 7128.5 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=3025 roi=872 vsr=1105 asr=0 fusion=0.0 clean=807 inject=0] |
+| TICKET-017 | windows | pipeline | 7941.7 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=3969 roi=1071 vsr=1141 asr=0 fusion=0.0 clean=807 inject=0] |
+| TICKET-017 | windows | pipeline | 11029.3 | - | 1 | decision=dry_run confidence=0.80 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=5795 roi=1600 vsr=2309 asr=321 fusion=0.1 clean=816 inject=0] |
+| TICKET-017 | windows | pipeline | 13265.3 | - | 1 | decision=dry_run confidence=0.59 fusion=alignment_below_threshold prompt=v1 fallback=True [cap=7794 roi=2196 vsr=2562 asr=337 fusion=0.1 clean=807 inject=0] |
+| TICKET-017 | windows | pipeline | 6184.4 | - | 1 | decision=dry_run confidence=0.91 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=2224 roi=615 vsr=1131 asr=172 fusion=0.0 clean=813 inject=0] |
+| TICKET-017 | windows | pipeline | 9414.8 | - | 1 | decision=dry_run confidence=0.93 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=5188 roi=1456 vsr=1383 asr=228 fusion=0.0 clean=808 inject=0] |
+| TICKET-017 | windows | pipeline | 10105.7 | - | 1 | decision=dry_run confidence=0.81 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=5376 roi=1498 vsr=1907 asr=253 fusion=0.1 clean=819 inject=0] |
+| TICKET-017 | windows | pipeline | 9574.3 | - | 1 | decision=dry_run confidence=0.88 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=5010 roi=1398 vsr=1751 asr=267 fusion=0.1 clean=810 inject=0] |
+| TICKET-017 | windows | pipeline | 13125.8 | - | 1 | decision=dry_run confidence=0.59 fusion=alignment_below_threshold prompt=v1 fallback=True [cap=4218 roi=1310 vsr=2200 asr=163 fusion=0.1 clean=806 inject=0] |
+| TICKET-017 | windows | pipeline | 8547.0 | - | 1 | decision=dry_run confidence=0.86 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=3905 roi=1189 vsr=1610 asr=275 fusion=0.1 clean=806 inject=0] |
+| TICKET-017 | windows | pipeline | 7192.3 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=2941 roi=929 vsr=1297 asr=0 fusion=0.0 clean=805 inject=0] |
+| TICKET-017 | windows | pipeline | 8021.0 | - | 1 | decision=dry_run confidence=1.00 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=3728 roi=1167 vsr=1300 asr=250 fusion=0.0 clean=814 inject=0] |
+| TICKET-017 | windows | pipeline | 12440.9 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=3217 roi=952 vsr=2238 asr=0 fusion=0.0 clean=807 inject=0] |
+| TICKET-017 | windows | pipeline | 10458.0 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=5901 roi=1766 vsr=1551 asr=0 fusion=0.0 clean=805 inject=0] |
+| TICKET-017 | windows | pipeline | 7407.4 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=3362 roi=1067 vsr=1086 asr=0 fusion=0.0 clean=816 inject=0] |
+| TICKET-017 | windows | pipeline | 7780.8 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=2976 roi=989 vsr=1700 asr=0 fusion=0.0 clean=818 inject=0] |
+| TICKET-017 | windows | pipeline | 8126.4 | - | 1 | decision=dry_run confidence=0.86 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=3699 roi=1093 vsr=1491 asr=217 fusion=0.1 clean=803 inject=0] |
+| TICKET-017 | windows | pipeline | 6367.2 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=2338 roi=684 vsr=1134 asr=0 fusion=0.0 clean=802 inject=0] |

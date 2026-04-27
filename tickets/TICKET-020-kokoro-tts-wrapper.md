@@ -1,4 +1,4 @@
-# TICKET-017 - Kokoro TTS wrapper (RealtimeTTS streaming)
+# TICKET-020 - Kokoro TTS wrapper (RealtimeTTS streaming)
 
 Phase: 1 - ML PoC
 Epic: Output
@@ -8,7 +8,7 @@ Status: Not started
 
 ## Goal
 
-Wrap Kokoro-82M behind `TTSEngine.speak(text) -> TTSStream` (a generator of float32 24 kHz mono PCM frames) using the `RealtimeTTS` library with its Kokoro engine. The engine must start producing audio frames before the full sentence is synthesized - the roadmap calls out 97 ms time-to-first-byte as the target, and streaming is the whole reason we can hide the rest of the pipeline behind the TTS playback. The audio consumer is TICKET-018 (virtual mic sink), so this ticket does **not** open any output device itself.
+Wrap Kokoro-82M behind `TTSEngine.speak(text) -> TTSStream` (a generator of float32 24 kHz mono PCM frames) using the `RealtimeTTS` library with its Kokoro engine. The engine must start producing audio frames before the full sentence is synthesized - the roadmap calls out 97 ms time-to-first-byte as the target, and streaming is the whole reason we can hide the rest of the pipeline behind the TTS playback. The audio consumer is TICKET-021 (virtual mic sink), so this ticket does **not** open any output device itself.
 
 ## System dependencies
 
@@ -53,7 +53,7 @@ Already available (TICKET-002):
 - [ ] `python -m sabi tts-smoke "hello meeting"` produces a playable 24 kHz mono wav under `reports/` in under 2 s on the reference GPU laptop.
 - [ ] First-frame TTFB logged in the smoke run is under 150 ms on GPU (loosened from the 97 ms roadmap target to account for our RealtimeTTS abstraction; tightening is a later optimization).
 - [ ] On CPU-only hardware the smoke command still succeeds but prints a WARNING that meeting-mode latency will not meet the roadmap budget.
-- [ ] Every yielded `TTSFrame` is exactly `frame_ms * sample_rate / 1000` samples except the last, which may be short; the consumer in TICKET-018 can rely on that.
+- [ ] Every yielded `TTSFrame` is exactly `frame_ms * sample_rate / 1000` samples except the last, which may be short; the consumer in TICKET-021 can rely on that.
 - [ ] `TTSStream` is fully consumable once and closes cleanly on exhaustion or on caller `close()`.
 - [ ] Latency appended to `reports/latency-log.md` stage `tts`.
 - [ ] Unit tests pass with monkeypatched RealtimeTTS.
@@ -61,7 +61,7 @@ Already available (TICKET-002):
 ## Out of scope
 
 - Voice cloning - explicit Phase 3 upgrade path in the roadmap (project_roadmap.md line 188). Our PoC uses the Kokoro default voice.
-- Audio routing / playback - belongs to TICKET-018. This ticket yields frames, it does not play them.
+- Audio routing / playback - belongs to TICKET-021. This ticket yields frames, it does not play them.
 - TTS caching - no repeated-phrase cache for PoC; every `speak()` resynthesizes.
 - Multi-language voices - PoC fixes English. The config knob is there for a later ticket.
 - Interruption / barge-in - meeting mode does not need mid-utterance stop for PoC.
@@ -69,7 +69,7 @@ Already available (TICKET-002):
 ## Notes
 
 - Keep the TTS process single-utterance at a time. Trying to overlap Kokoro runs on a single GPU usually hurts TTFB more than it helps throughput.
-- Do not resample inside `speak()`. 24 kHz is Kokoro's native rate; TICKET-018 deals with matching VB-Cable's expected rate.
+- Do not resample inside `speak()`. 24 kHz is Kokoro's native rate; TICKET-021 deals with matching VB-Cable's expected rate.
 
 ## References
 

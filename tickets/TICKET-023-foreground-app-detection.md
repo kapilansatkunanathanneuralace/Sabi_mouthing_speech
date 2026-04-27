@@ -1,4 +1,4 @@
-# TICKET-020 - Foreground app detection
+# TICKET-023 - Foreground app detection
 
 Phase: 1 - ML PoC
 Epic: Orchestration
@@ -8,7 +8,7 @@ Status: Not started
 
 ## Goal
 
-Ship `sabi.orchestration.focus.ForegroundWatcher` - a lightweight poller (or event-driven hook) that tells the rest of the system which app has focus right now, classified into `{"zoom", "teams", "meet", "slack", "browser", "editor", "other"}`. This powers the mode switcher (TICKET-021) and gives `CleanupContext.focused_app` a real value so the LLM cleanup prompt can eventually become app-aware (out of scope for PoC, wiring is not).
+Ship `sabi.orchestration.focus.ForegroundWatcher` - a lightweight poller (or event-driven hook) that tells the rest of the system which app has focus right now, classified into `{"zoom", "teams", "meet", "slack", "browser", "editor", "other"}`. This powers the mode switcher (TICKET-024) and gives `CleanupContext.focused_app` a real value so the LLM cleanup prompt can eventually become app-aware (out of scope for PoC, wiring is not).
 
 ## System dependencies
 
@@ -42,7 +42,7 @@ Already installed (TICKET-002):
   - Poll loop (default 200 ms) reading `GetForegroundWindow` -> HWND -> PID -> process name + window title.
   - Caches the last `FocusEvent`; only emits to subscribers when `(pid, window_title)` changes, to keep downstream quiet.
   - Runs on its own daemon thread, started/stopped via context manager. On stop, `join(timeout=1 s)`.
-  - Exposes a pub/sub-style `.subscribe(callback)` so TICKET-021 can register a handler.
+  - Exposes a pub/sub-style `.subscribe(callback)` so TICKET-024 can register a handler.
 - CLI: `python -m sabi focus-debug` prints `FocusEvent`s as the user tabs between windows. Useful sanity check.
 - `tests/test_focus.py` monkeypatches the Win32 calls so no real windowing is required:
   - Asserts classifier mapping for each configured process name.
@@ -64,7 +64,7 @@ Already installed (TICKET-002):
 - Reading browser tab URLs via UIA / DevTools protocol - too brittle and too slow for PoC.
 - Detecting audio-call-in-progress state (Zoom "I am currently in a meeting") - not exposed by public APIs, and not needed; mode switcher only cares that Zoom is focused.
 - Linux / Mac equivalents - Windows-only PoC.
-- Using focus state to rewrite prompts per app - TICKET-008 / TICKET-019 already ship `focused_app` plumbing but explicitly defer app-aware prompting.
+- Using focus state to rewrite prompts per app - TICKET-008 / TICKET-022 already ship `focused_app` plumbing but explicitly defer app-aware prompting.
 
 ## Notes
 

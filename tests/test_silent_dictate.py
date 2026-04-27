@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import queue
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -22,6 +21,7 @@ from sabi.cleanup.ollama import CleanedText
 from sabi.input.hotkey import HotkeyConfig, TriggerBus, TriggerEvent
 from sabi.models.vsr.model import VSRResult
 from sabi.output.inject import InjectConfig, InjectResult
+from sabi.pipelines.events import PipelineStatusEvent
 from sabi.pipelines.silent_dictate import (
     SilentDictateConfig,
     SilentDictatePipeline,
@@ -29,7 +29,6 @@ from sabi.pipelines.silent_dictate import (
     _Deps,
     load_silent_dictate_config,
 )
-
 
 # --- Fakes ----------------------------------------------------------------
 
@@ -386,8 +385,10 @@ def test_happy_path_pastes_and_logs(
     )
     pipeline, bag = _build(cfg=cfg, frame_batches=[base_frames])
     events: list[UtteranceProcessed] = []
+    status_events: list[PipelineStatusEvent] = []
     with pipeline as p:
         p.subscribe(events.append)
+        p.subscribe_status(status_events.append)
         primary = bag["hotkey_factory"].primary
         assert primary is not None
         _fire_trigger(primary, hold_ms=80)
@@ -402,6 +403,12 @@ def test_happy_path_pastes_and_logs(
     assert 0.99 <= ev.face_present_ratio <= 1.0
     assert bag["paste"].calls == [("hello world", cfg.inject)]
     assert bag["vsr"].calls  # VSR was invoked
+    modes = [ev.mode for ev in status_events]
+    assert "recording" in modes
+    assert "decoding" in modes
+    assert "cleaning" in modes
+    assert "pasting" in modes
+    assert modes[-1] == "idle"
 
     rows = bag["latency"].rows
     assert len(rows) == 1
@@ -416,6 +423,7 @@ def test_happy_path_pastes_and_logs(
     assert "trigger_stop" in types
     assert "utterance_processed" in types
     utter = next(p for p in payload if p["event_type"] == "utterance_processed")
+    assert utter["cleanup"]["prompt_version"] == "v1"
     assert set(utter["latencies"].keys()) == {
         "capture_open_ms",
         "capture_ms",
@@ -652,7 +660,15 @@ def test_latency_keys_present_and_monotonic(
         _wait_dispatch(p)
 
     lat = events[0].latencies
-    for key in ("capture_open_ms", "capture_ms", "roi_ms", "vsr_ms", "cleanup_ms", "inject_ms", "total_ms"):
+    for key in (
+        "capture_open_ms",
+        "capture_ms",
+        "roi_ms",
+        "vsr_ms",
+        "cleanup_ms",
+        "inject_ms",
+        "total_ms",
+    ):
         assert key in lat, f"missing latency key: {key}"
         assert lat[key] >= 0.0
     assert lat["vsr_ms"] == 33.0

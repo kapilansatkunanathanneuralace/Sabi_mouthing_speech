@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from sabi.cleanup import CleanedText, CleanupConfig, CleanupContext, TextCleaner
+from sabi.cleanup.prompts import load_prompt, resolve_prompt_path
 
 
 def _tags_ok(request: httpx.Request) -> httpx.Response:
@@ -77,6 +78,63 @@ def test_cleanup_happy_path_returns_cleaned_text() -> None:
     assert messages[0]["role"] == "system"
     assert "preserve" in messages[0]["content"].lower()
     assert "um i think it might like work" in messages[1]["content"]
+
+
+def test_prompt_resolver_finds_v1_and_v2_dictation_prompts() -> None:
+    v1 = resolve_prompt_path("v1", "dictation")
+    v2 = resolve_prompt_path("v2", "dictation")
+
+    assert v1.name == "v1_dictation.txt"
+    assert v2.name == "v2_dictation.txt"
+    assert "Preserve the speaker's meaning exactly" in load_prompt("v1", "dictation")
+    assert "SABI_CLEANUP_V2_DICTATION" in load_prompt("v2", "dictation")
+
+
+def test_prompt_resolver_rejects_unknown_version_or_register() -> None:
+    with pytest.raises(ValueError, match="unknown cleanup prompt"):
+        resolve_prompt_path("v3", "dictation")
+    with pytest.raises(ValueError, match="unknown cleanup prompt"):
+        resolve_prompt_path("v1", "meeting")
+
+
+def test_cleanup_v2_prompt_reaches_ollama_request() -> None:
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return _tags_ok(request)
+        body = json.loads(request.content.decode())
+        seen.append(body)
+        return httpx.Response(200, json={"message": {"content": "I think we should ship Friday."}})
+
+    cfg = CleanupConfig(prompt_version="v2")
+    with _make_cleaner(handler, config=cfg) as cleaner:
+        result = cleaner.cleanup(
+            "um i i think we should ship like friday you know",
+            CleanupContext(source="asr"),
+        )
+
+    assert result.text == "I think we should ship Friday."
+    assert "SABI_CLEANUP_V2_DICTATION" in seen[0]["messages"][0]["content"]
+
+
+def test_cleanup_v2_hallucination_guard_returns_raw() -> None:
+    raw = "hello world this is a reasonably long sentence"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return _tags_ok(request)
+        return httpx.Response(200, json={"message": {"content": "EXPANDED " * 200}})
+
+    cleaner = _make_cleaner(handler, config=CleanupConfig(prompt_version="v2"))
+    try:
+        result = cleaner.cleanup(raw)
+    finally:
+        cleaner.close()
+
+    assert result.used_fallback is True
+    assert result.text == raw
+    assert result.reason == "output_too_long"
 
 
 def test_cleanup_bypasses_and_warns_once_when_unavailable(

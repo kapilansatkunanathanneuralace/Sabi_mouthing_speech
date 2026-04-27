@@ -1,6 +1,6 @@
 # Sabi Mouthing Speech - ML PoC Tickets
 
-This directory is the executable breakdown of the **silent-dictation ML PoC plus silent-meeting mode** carved out of [`project_roadmap.md`](../project_roadmap.md). A single dev should be able to burn these tickets down and land a working end-to-end silent-dictation demo, an audio-dictation baseline, and a silent-meeting demo that pipes a synthesized voice into Zoom / Teams / Meet.
+This directory is the executable breakdown of the **silent-dictation ML PoC, audio-visual fusion track, and silent-meeting mode** carved out of [`project_roadmap.md`](../project_roadmap.md). A single dev should be able to burn these tickets down and land a working end-to-end silent-dictation demo, an audio-dictation baseline, a confidence-weighted fused dictation pipeline, polished cleanup, and a silent-meeting demo that pipes a synthesized voice into Zoom / Teams / Meet.
 
 ## Scope
 
@@ -8,26 +8,29 @@ This directory is the executable breakdown of the **silent-dictation ML PoC plus
 
 - Webcam capture + MediaPipe lip ROI.
 - Chaplin / Auto-AVSR silent-speech inference.
-- faster-whisper ASR baseline (for A/B with the silent path).
-- Ollama 3B LLM cleanup pass with a dictation prompt and a meeting-register prompt.
+- faster-whisper ASR baseline (for A/B with the silent path and as one input to fusion).
+- Audio-visual fusion module + fused dictation pipeline (roadmap Tier 2 / Phase 2).
+- Ollama 3B LLM cleanup pass with a dictation prompt v1, a polished v2, and a meeting-register prompt; eval-driven prompt A/B.
 - Clipboard + paste injection into the focused app (dictation output path).
 - Kokoro-82M TTS via RealtimeTTS (meeting output path).
 - VB-Cable virtual-mic sink routing (Windows) + bundled setup / detection.
 - Push-to-talk / toggle hotkey, plus an instant meeting mute/unmute.
 - Foreground-app detection (Zoom / Teams / Meet / other) and a mode switcher.
 - Minimal overlay / status UI (shared across pipelines).
-- Latency + WER eval harness (dictation) + listening-test eval (meeting).
+- Latency + WER eval harness (dictation + fusion A/B) + listening-test eval (meeting).
 
-This realizes both **Flow 1 - Silent Dictation** (project_roadmap.md lines 58-95) and **Flow 2 - Silent Meeting** (project_roadmap.md lines 97-144), plus the faster-whisper audio path so we can measure the silent pipeline against a known-good baseline.
+This realizes both **Flow 1 - Silent Dictation** (project_roadmap.md lines 58-95) and **Flow 2 - Silent Meeting** (project_roadmap.md lines 97-144), the faster-whisper audio path so we can measure the silent pipeline against a known-good baseline, and the **roadmap Phase 2** items (audio-visual fusion, project_roadmap.md lines 30-39 and 179-184; LLM cleanup polish, project_roadmap.md line 181) injected ahead of the meeting track per priority reorder.
+
+Demo operators should start with [`../docs/DEMO.md`](../docs/DEMO.md). For a non-specialist explanation of Chaplin, faster-whisper, Ollama, WER, and the pipeline layers, read [`../docs/INFRA_CHEAT_SHEET.md`](../docs/INFRA_CHEAT_SHEET.md).
 
 **Out of scope (deferred):**
 
-- Audio-visual fusion layer (Tier 2, roadmap lines 30-39 and 154-156).
 - Voice cloning for TTS (Phase 3 roadmap item, project_roadmap.md line 188).
 - Electron shell, React UI, Python sidecar packaging (roadmap lines 225-272).
 - Code signing, notarization, auto-update (roadmap lines 259-277).
 - Scene/screen context, gaze/gesture (roadmap lines 158-166, Phases 3+).
 - Cross-platform support for the meeting sink - BlackHole (Mac) and PulseAudio (Linux) are noted in the roadmap but deferred out of PoC.
+- App-aware tone routing in cleanup (Slack vs Docs vs code) - `focused_app` is plumbed but the PoC does not branch on it.
 
 ## Ticket index
 
@@ -48,15 +51,18 @@ This realizes both **Flow 1 - Silent Dictation** (project_roadmap.md lines 58-95
 | [TICKET-013](TICKET-013-overlay-status-ui.md) | Minimal overlay / status UI | UX | M | 011, 012 |
 | [TICKET-014](TICKET-014-latency-wer-eval-harness.md) | Latency + WER eval harness | Eval | L | 011, 012 |
 | [TICKET-015](TICKET-015-demo-runbook.md) | Demo runbook | Eval | S | 014 |
-| [TICKET-016](TICKET-016-virtual-mic-install.md) | Virtual mic install integration (VB-Cable) | Infra | S | 002 |
-| [TICKET-017](TICKET-017-kokoro-tts-wrapper.md) | Kokoro TTS wrapper (RealtimeTTS streaming) | Output | L | 002 |
-| [TICKET-018](TICKET-018-virtual-mic-sink.md) | Virtual mic audio sink routing | Output | M | 016, 017 |
-| [TICKET-019](TICKET-019-meeting-register-cleanup.md) | Meeting-register cleanup prompt | Cleanup | S | 008 |
-| [TICKET-020](TICKET-020-foreground-app-detection.md) | Foreground app detection | Orchestration | S | 002 |
-| [TICKET-021](TICKET-021-mode-switcher.md) | Mode switcher / orchestrator | Orchestration | M | 010, 020 |
-| [TICKET-022](TICKET-022-silent-meeting-pipeline.md) | Silent-meeting pipeline (PoC-3) | Pipeline | L | 005, 018, 019, 021 |
-| [TICKET-023](TICKET-023-meeting-mute-toggle.md) | Meeting mute / unmute instant toggle | Orchestration | S | 018, 022 |
-| [TICKET-024](TICKET-024-meeting-demo-eval.md) | Meeting demo runbook + listening-test eval | Eval | M | 015, 022, 023 |
+| [TICKET-016](TICKET-016-fusion-module.md) | Audio-visual fusion module | Fusion | M | 005, 007 |
+| [TICKET-017](TICKET-017-fused-dictation-pipeline.md) | Fused dictation pipeline (PoC-3) | Pipeline | L | 016, 005, 007, 008, 009, 010, 011, 012 |
+| [TICKET-018](TICKET-018-cleanup-polish-prompt-v2.md) | LLM cleanup polish (prompt v2 + eval A/B) | Cleanup | M | 008, 014 |
+| [TICKET-019](TICKET-019-virtual-mic-install.md) | Virtual mic install integration (VB-Cable) | Infra | S | 002 |
+| [TICKET-020](TICKET-020-kokoro-tts-wrapper.md) | Kokoro TTS wrapper (RealtimeTTS streaming) | Output | L | 002 |
+| [TICKET-021](TICKET-021-virtual-mic-sink.md) | Virtual mic audio sink routing | Output | M | 019, 020 |
+| [TICKET-022](TICKET-022-meeting-register-cleanup.md) | Meeting-register cleanup prompt | Cleanup | S | 008 |
+| [TICKET-023](TICKET-023-foreground-app-detection.md) | Foreground app detection | Orchestration | S | 002 |
+| [TICKET-024](TICKET-024-mode-switcher.md) | Mode switcher / orchestrator | Orchestration | M | 010, 023 |
+| [TICKET-025](TICKET-025-silent-meeting-pipeline.md) | Silent-meeting pipeline (PoC-4) | Pipeline | L | 005, 021, 022, 024 |
+| [TICKET-026](TICKET-026-meeting-mute-toggle.md) | Meeting mute / unmute instant toggle | Orchestration | S | 021, 025 |
+| [TICKET-027](TICKET-027-meeting-demo-eval.md) | Meeting demo runbook + listening-test eval | Eval | M | 015, 025, 026 |
 
 ## Dependency graph
 
@@ -77,15 +83,18 @@ graph TD
   T013[TICKET-013 Overlay TUI]
   T014[TICKET-014 Dictation eval]
   T015[TICKET-015 Dictation runbook]
-  T016[TICKET-016 VB-Cable install]
-  T017[TICKET-017 Kokoro TTS]
-  T018[TICKET-018 Virtual mic sink]
-  T019[TICKET-019 Meeting cleanup]
-  T020[TICKET-020 App detection]
-  T021[TICKET-021 Mode switcher]
-  T022[TICKET-022 Silent meeting PoC-3]
-  T023[TICKET-023 Meeting mute]
-  T024[TICKET-024 Meeting runbook + eval]
+  T016[TICKET-016 Fusion module]
+  T017[TICKET-017 Fused dictation PoC-3]
+  T018[TICKET-018 Cleanup polish v2]
+  T019[TICKET-019 VB-Cable install]
+  T020[TICKET-020 Kokoro TTS]
+  T021[TICKET-021 Virtual mic sink]
+  T022[TICKET-022 Meeting cleanup]
+  T023[TICKET-023 App detection]
+  T024[TICKET-024 Mode switcher]
+  T025[TICKET-025 Silent meeting PoC-4]
+  T026[TICKET-026 Meeting mute]
+  T027[TICKET-027 Meeting runbook + eval]
 
   T001 --> T002
   T002 --> T003
@@ -94,9 +103,9 @@ graph TD
   T002 --> T008
   T002 --> T009
   T002 --> T010
-  T002 --> T016
-  T002 --> T017
+  T002 --> T019
   T002 --> T020
+  T002 --> T023
   T003 --> T004
   T004 --> T005
   T005 --> T011
@@ -113,38 +122,57 @@ graph TD
   T011 --> T014
   T012 --> T014
   T014 --> T015
-  T016 --> T018
-  T017 --> T018
-  T008 --> T019
-  T010 --> T021
+  T005 --> T016
+  T007 --> T016
+  T016 --> T017
+  T005 --> T017
+  T007 --> T017
+  T008 --> T017
+  T009 --> T017
+  T010 --> T017
+  T011 --> T017
+  T012 --> T017
+  T008 --> T018
+  T014 --> T018
+  T019 --> T021
   T020 --> T021
-  T005 --> T022
-  T018 --> T022
-  T019 --> T022
-  T021 --> T022
-  T018 --> T023
-  T022 --> T023
-  T015 --> T024
-  T022 --> T024
+  T008 --> T022
+  T010 --> T024
   T023 --> T024
+  T005 --> T025
+  T021 --> T025
+  T022 --> T025
+  T024 --> T025
+  T021 --> T026
+  T025 --> T026
+  T015 --> T027
+  T025 --> T027
+  T026 --> T027
 ```
 
 ## Suggested burn-down order
 
-Week 1 - dictation PoC:
+Status legend: **D** = Done, **P** = In progress, **N** = Not started.
 
-- **Day 1-2:** 001, 002, 003, 004, 006, 009, 010 (most can run in parallel after 002 is green).
-- **Day 3-4:** 005, 007, 008 (model integrations, heaviest downloads).
-- **Day 5-7:** 011, 012 (the two dictation PoCs).
-- **Day 8-9:** 013, 014, 015 (dictation polish, eval, runbook).
+Week 1 - dictation PoC (largely landed):
 
-Week 2 - meeting mode:
+- **Day 1-2:** 001 (D), 002 (D), 003 (D), 004 (D), 006 (D), 009 (D), 010 (D).
+- **Day 3-4:** 005 (P, GPU WER verification pending), 007 (D), 008 (D).
+- **Day 5-7:** 011 (D), 012 (D).
 
-- **Day 10:** 016, 017 (VB-Cable install docs + Kokoro TTS).
-- **Day 11:** 018, 019, 020 (audio sink, meeting prompt, app detection).
-- **Day 12:** 021, 023 (mode switcher + mute toggle can be built in parallel).
-- **Day 13:** 022 (silent-meeting pipeline wire-up).
-- **Day 14:** 024 (meeting demo runbook + listening-test eval).
+Week 2 - dictation polish + Phase 2 fusion + cleanup polish (current focus):
+
+- **Day 8-9:** 013, 014, 015 (overlay TUI, eval harness, demo runbook). Closes Phase 1 milestone.
+- **Day 10-11:** 016, 017 (fusion module + fused dictation pipeline). Roadmap Phase 2 deliverable.
+- **Day 12:** 018 (cleanup polish v2 + eval A/B). Depends on 014; reuses the eval harness for prompt comparison.
+
+Week 3 - meeting mode (deferred behind fusion + polish):
+
+- **Day 13:** 019, 020 (VB-Cable install docs + Kokoro TTS).
+- **Day 14:** 021, 022, 023 (audio sink, meeting prompt, app detection).
+- **Day 15:** 024, 026 (mode switcher + mute toggle can be built in parallel).
+- **Day 16:** 025 (silent-meeting pipeline wire-up).
+- **Day 17:** 027 (meeting demo runbook + listening-test eval).
 
 ## Ticket template
 
@@ -154,7 +182,7 @@ Every ticket file follows this shape:
 # TICKET-XXX - <title>
 
 Phase: 1 - ML PoC
-Epic: <Infra | Capture | VSR | ASR | Cleanup | Injection | UX | Eval | Pipeline | Output | Orchestration>
+Epic: <Infra | Capture | VSR | ASR | Cleanup | Injection | UX | Eval | Pipeline | Output | Orchestration | Fusion>
 Estimate: <S | M | L>
 Depends on: <TICKET-YYY, TICKET-ZZZ>
 Status: Not started

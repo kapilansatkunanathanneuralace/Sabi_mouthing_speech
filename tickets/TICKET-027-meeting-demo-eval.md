@@ -1,14 +1,14 @@
-# TICKET-024 - Meeting demo runbook + listening-test eval
+# TICKET-027 - Meeting demo runbook + listening-test eval
 
 Phase: 1 - ML PoC
 Epic: Eval
 Estimate: M
-Depends on: TICKET-015, TICKET-022, TICKET-023
+Depends on: TICKET-015, TICKET-025, TICKET-026
 Status: Not started
 
 ## Goal
 
-Ship `docs/DEMO-MEETING.md` so a reviewer can reproduce PoC-3 (silent meeting into Zoom) cold on a fresh Windows machine, and extend `sabi.eval.harness` with a meeting-mode track that measures **end-to-end latency** (mouth stop -> first sample written to the virtual mic) and a **listening-test eval** that captures synthesized audio plus ground-truth text for human MOS-style scoring. This is how we know if meeting mode is actually usable, not just wired.
+Ship `docs/DEMO-MEETING.md` so a reviewer can reproduce PoC-4 (silent meeting into Zoom) cold on a fresh Windows machine, and extend `sabi.eval.harness` with a meeting-mode track that measures **end-to-end latency** (mouth stop -> first sample written to the virtual mic) and a **listening-test eval** that captures synthesized audio plus ground-truth text for human MOS-style scoring. This is how we know if meeting mode is actually usable, not just wired.
 
 ## System dependencies
 
@@ -40,10 +40,10 @@ New, eval-only:
      - VB-Cable sample-rate mismatch -> crackle; mitigation "set both ends to 48 kHz in Windows Sound Control Panel".
      - Kokoro first-utterance JIT stall after a long idle period -> mitigation "keep `warm_up_on_init` true and issue a dummy synth every N minutes - follow-up ticket".
      - Confidence floor too strict -> "no audio at all" in real demos; document the F12 force-push behavior prominently.
-     - Long utterances truncating against `max_output_seconds` in TICKET-017.
+     - Long utterances truncating against `max_output_seconds` in TICKET-020.
 - Extend `sabi.eval.harness`:
   - Add a `SilentMeetingOfflineRunner(video_path, capture_dir) -> UtteranceProcessed`:
-    - Feeds frames through the same pipeline path as TICKET-022 with capture replaced by a sequence-backed fake and the sink replaced by a `CapturingSink` that writes incoming samples to `<capture_dir>/<phrase_id>.wav` instead of the VB-Cable device.
+    - Feeds frames through the same pipeline path as TICKET-025 with capture replaced by a sequence-backed fake and the sink replaced by a `CapturingSink` that writes incoming samples to `<capture_dir>/<phrase_id>.wav` instead of the VB-Cable device.
     - Reuses the real `TTSEngine` so synthesis quality and latency are representative.
   - End-to-end latency measurement: `end_to_end_ms` is `trigger_stop_ns` -> first sample appended to the captured wav. Added to the report as a new column.
   - Listening-test output: writes `reports/meeting-eval-<date>/<phrase_id>.wav` (git-ignored) plus a `reports/meeting-eval-<date>/scorecard.csv` with columns: `phrase_id`, `ground_truth_text`, `cleaned_text`, `end_to_end_ms`, `tts_ttfb_ms`, `capture_duration_ms`, `human_mos` (blank, filled in by a human listener).
@@ -54,7 +54,7 @@ New, eval-only:
 
 ## Acceptance criteria
 
-- [ ] A developer reproducing from `docs/DEMO.md` + `docs/DEMO-MEETING.md` on a fresh machine can get PoC-3 working in a test Zoom meeting within 90 minutes (installer downloads + model pulls included).
+- [ ] A developer reproducing from `docs/DEMO.md` + `docs/DEMO-MEETING.md` on a fresh machine can get PoC-4 working in a test Zoom meeting within 90 minutes (installer downloads + model pulls included).
 - [ ] `python -m sabi eval --pipelines silent_meeting --capture --dataset data/eval/sample` produces a markdown report with a meeting-track section + a folder of captured wavs + a scorecard CSV.
 - [ ] The scorecard CSV columns match the listening-test protocol documented in `docs/DEMO-MEETING.md`; a human listener can fill in `human_mos` without modifying the file structure.
 - [ ] Captured wavs are mono, at the sink's configured sample rate, and decodable by `librosa.load` without error.

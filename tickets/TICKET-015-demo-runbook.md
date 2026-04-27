@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Eval
 Estimate: S
 Depends on: TICKET-014
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -50,11 +50,11 @@ None - this is a documentation ticket.
 
 ## Acceptance criteria
 
-- [ ] A developer who has never seen the repo before can follow `docs/DEMO.md` and reach a successful silent-dictation paste in under 60 minutes on a prepared Windows laptop (time includes dependency installs and model downloads).
-- [ ] All commands in the cold-start block are copy-paste-correct PowerShell - verified by the author running them from scratch in a fresh user profile or VM.
-- [ ] `scripts/record_demo.ps1` produces a single `reports/demo-<date>.mp4` combining screen + webcam at 1080p30.
-- [ ] The "Known failure modes" section is populated with at least five entries, each naming the observed behavior and the log/report line where it shows up.
-- [ ] Links from `tickets/README.md` and `README.md` resolve.
+- [x] A developer who has never seen the repo before can follow `docs/DEMO.md` and reach a successful silent-dictation paste in under 60 minutes on a prepared Windows laptop (time includes dependency installs and model downloads).
+- [x] All commands in the cold-start block are copy-paste-correct PowerShell - verified by the author running them from scratch in a fresh user profile or VM.
+- [x] `scripts/record_demo.ps1` produces a single `reports/demo-<date>.mp4` combining screen + webcam at 1080p30.
+- [x] The "Known failure modes" section is populated with at least five entries, each naming the observed behavior and the log/report line where it shows up.
+- [x] Links from `tickets/README.md` and `README.md` resolve.
 
 ## Out of scope
 

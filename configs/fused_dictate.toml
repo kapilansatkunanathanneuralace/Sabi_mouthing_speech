@@ -1,0 +1,78 @@
+# Fused dictation pipeline defaults (TICKET-017).
+
+[pipeline]
+parallel = true
+paste_floor_confidence = 0.4
+occlusion_threshold = 0.6
+vad_coverage_floor = 0.5
+force_paste_binding = "f12"
+force_paste_window_ms = 1500
+force_paste_mode_fused = "listener"
+keep_camera_open = false
+keep_mic_open = true
+predict_timeout_ms = 15000
+dry_run = false
+hardware_label = "windows"
+
+[hotkey]
+mode = "push_to_talk"
+binding = "ctrl+alt+space"
+min_hold_ms = 80
+cooldown_ms = 150
+
+[fusion]
+mode = "auto"
+asr_confidence_floor = 0.4
+vsr_confidence_floor = 0.35
+auto_switch_low_conf_ratio = 0.5
+tie_epsilon = 0.02
+tie_breaker = "asr"
+min_alignment_ratio = 0.5
+
+[webcam]
+device_index = 0
+width = 1280
+height = 720
+target_fps = 25.0
+buffer_size = 4
+mirror = false
+
+[lip_roi]
+target_size = 96
+smooth_alpha = 0.5
+max_missing_streak = 15
+grayscale = true
+
+[mic]
+sample_rate = 16000
+channels = 1
+frame_ms = 20
+vad_aggressiveness = 2
+min_utterance_ms = 300
+max_utterance_ms = 15000
+trailing_silence_ms = 400
+
+[asr]
+model_size = "small"
+device = "auto"
+language = "en"
+beam_size = 1
+vad_filter = false
+word_timestamps = true
+silence_peak_dbfs = -60.0
+
+[vsr]
+device = "auto"
+precision = "fp32"
+max_frames = 300
+input_fps = 25.0
+
+[cleanup]
+# See configs/cleanup.toml for Ollama defaults.
+# TICKET-018: keep v1 default until v2 clears eval promotion.
+prompt_version = "v1"
+
+[inject]
+paste_delay_ms = 15
+restore_delay_ms = 400
+dry_run = false

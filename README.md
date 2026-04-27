@@ -4,11 +4,12 @@ A **local, multimodal PoC** that turns spoken **or** silently mouthed input into
 
 - **Silent dictation** — webcam → MediaPipe lip ROI → Chaplin / Auto-AVSR → Ollama cleanup → paste (`python -m sabi silent-dictate`).
 - **Audio dictation** — microphone + VAD → faster-whisper → Ollama cleanup → paste (`python -m sabi dictate`).
-- **Silent meeting (planned)** — VSR → Kokoro TTS → VB-Cable virtual mic → Zoom/Teams/Meet. Specified across TICKET-016…024; not implemented yet.
+- **Fused dictation (planned, Phase 2)** — VSR + ASR run in parallel, confidence-weighted fusion → cleanup → paste. Specified across TICKET-016 (fusion module) and TICKET-017 (fused pipeline); not implemented yet.
+- **Silent meeting (planned)** — VSR → Kokoro TTS → VB-Cable virtual mic → Zoom/Teams/Meet. Specified across TICKET-019…027; not implemented yet.
 
 Work is tracked as numbered tickets in [`tickets/README.md`](tickets/README.md). Product vision, phases, and the fusion roadmap live in [`project_roadmap.md`](project_roadmap.md).
 
-> **New to the repo?** Read [`docs/ONBOARDING.md`](docs/ONBOARDING.md) first. It covers setup, a folder-by-folder reference, and a code walkthrough of how an utterance flows through each layer.
+> **New to the repo?** Read [`docs/ONBOARDING.md`](docs/ONBOARDING.md) first. For the demo path, use [`docs/DEMO.md`](docs/DEMO.md); for a layman system explanation, use [`docs/INFRA_CHEAT_SHEET.md`](docs/INFRA_CHEAT_SHEET.md).
 ## Status at a glance
 
 | Area | State | Entry point |
@@ -18,9 +19,10 @@ Work is tracked as numbered tickets in [`tickets/README.md`](tickets/README.md).
 | Probe / hardware check (002)  | Done | `python -m sabi probe` |
 | Capture + VAD + hotkey + paste + cleanup (003–010) | Done | see per-feature commands below |
 | VSR wrapper (005) | In progress — GPU WER verification pending | `python -m sabi vsr-smoke <clip.mp4>` |
-| Overlay UI, eval harness, demo runbook (013–015) | Not started | — |
-| Meeting track (016–024) | Not started | — |
-| Audio–visual fusion | Roadmap Phase 2 / Tier 2 (after TICKET-014) | — |
+| Overlay UI, eval harness, demo runbook (013–015) | Done | `python -m sabi eval` / [`docs/DEMO.md`](docs/DEMO.md) |
+| Audio–visual fusion + fused pipeline (016–017) | Not started — roadmap Phase 2 (after 015) | — |
+| Cleanup polish v2 + eval A/B (018) | Not started — roadmap Phase 2 (after 014) | — |
+| Meeting track (019–027) | Not started — deferred behind fusion + polish | — |
 
 ## Quick start (Windows, PowerShell)
 
@@ -92,7 +94,7 @@ tests/          pytest; every module has a sibling test, no real hardware touche
 scripts/        argparse shims + debug utilities
 configs/        TOML defaults for each subsystem
 docs/           operator / dev docs (start with ONBOARDING.md)
-tickets/        24-ticket build plan + acceptance notes
+tickets/        27-ticket build plan + acceptance notes
 reports/        generated JSONL + latency-log.md
 third_party/    git submodules (Chaplin / Auto-AVSR)
 ```
@@ -103,6 +105,8 @@ See [`docs/ONBOARDING.md`](docs/ONBOARDING.md) for the detailed, per-folder tour
 
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — new-dev orientation + code walkthrough.
 - [`docs/INSTALL.md`](docs/INSTALL.md) — full install (venv, torch, Ollama, Chaplin, optional VB-Cable).
+- [`docs/DEMO.md`](docs/DEMO.md) — Phase 1 demo runbook for silent and audio dictation.
+- [`docs/INFRA_CHEAT_SHEET.md`](docs/INFRA_CHEAT_SHEET.md) — plain-English explanation of the system and common review questions.
 - [`docs/silent-dictate.md`](docs/silent-dictate.md) — PoC-1 reference (CLI, latency keys, JSONL schema).
 - [`docs/audio-dictate.md`](docs/audio-dictate.md) — PoC-2 reference (PTT vs VAD, force-paste policy).
 - [`docs/hotkey.md`](docs/hotkey.md), [`docs/paste-injection.md`](docs/paste-injection.md), [`docs/cleanup-prompt.md`](docs/cleanup-prompt.md), [`docs/MODELS.md`](docs/MODELS.md) — per-feature detail.

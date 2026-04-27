@@ -49,7 +49,9 @@ from sabi.input.hotkey import (
 )
 from sabi.models.latency import append_latency_row
 from sabi.models.vsr.model import VSRModel, VSRModelConfig, VSRResult
-from sabi.output.inject import InjectConfig, InjectResult, paste_text as _real_paste_text
+from sabi.output.inject import InjectConfig, InjectResult
+from sabi.output.inject import paste_text as _real_paste_text
+from sabi.pipelines.events import PipelinePhase, PipelineStatusEvent, UiMode, normalize_ui_mode
 
 logger = logging.getLogger(__name__)
 
@@ -297,8 +299,9 @@ class SilentDictatePipeline:
         self._deps = deps or _default_deps()
 
         if self._config.device_override is not None:
+            device_update = {"device": self._config.device_override}
             self._config = self._config.model_copy(
-                update={"vsr": self._config.vsr.model_copy(update={"device": self._config.device_override})}
+                update={"vsr": self._config.vsr.model_copy(update=device_update)}
             )
         if self._config.dry_run and not self._config.inject.dry_run:
             self._config = self._config.model_copy(
@@ -318,10 +321,13 @@ class SilentDictatePipeline:
 
         self._state_lock = threading.RLock()
         self._subscribers: list[Callable[[UtteranceProcessed], None]] = []
+        self._status_subscribers: list[Callable[[PipelineStatusEvent], None]] = []
+        self._last_status: PipelineStatusEvent | None = None
         self._utterance_counter = 0
         self._active: _ActiveUtterance | None = None
         self._pending: dict[int, _PendingForcePaste] = {}
         self._dispatch_threads: list[threading.Thread] = []
+        self._ollama_ok: bool | None = None
 
         self._jsonl = jsonl_writer or _JsonlWriter(self._config.jsonl_dir)
 
@@ -343,6 +349,22 @@ class SilentDictatePipeline:
         with self._state_lock:
             self._subscribers.append(callback)
 
+    def subscribe_status(
+        self,
+        callback: Callable[[PipelineStatusEvent], None],
+        *,
+        replay: bool = True,
+    ) -> None:
+        """Register a callback for live phase/status updates."""
+        with self._state_lock:
+            self._status_subscribers.append(callback)
+            last = self._last_status
+        if replay and last is not None:
+            try:
+                callback(last)
+            except Exception:
+                logger.exception("silent_dictate status subscriber raised")
+
     def _notify(self, event: UtteranceProcessed) -> None:
         with self._state_lock:
             subs = list(self._subscribers)
@@ -351,6 +373,42 @@ class SilentDictatePipeline:
                 cb(event)
             except Exception:
                 logger.exception("silent_dictate subscriber raised")
+
+    def _notify_status(self, event: PipelineStatusEvent) -> None:
+        with self._state_lock:
+            self._last_status = event
+            subs = list(self._status_subscribers)
+        for cb in subs:
+            try:
+                cb(event)
+            except Exception:
+                logger.exception("silent_dictate status subscriber raised")
+
+    def _emit_status(
+        self,
+        mode: PipelinePhase,
+        *,
+        utterance_id: int | None = None,
+        message: str | None = None,
+        clipboard_restore_deadline_ns: int | None = None,
+        pending_force_paste: bool = False,
+    ) -> None:
+        self._notify_status(
+            PipelineStatusEvent(
+                pipeline="silent",
+                mode=mode,
+                utterance_id=utterance_id,
+                hotkey_binding=self._config.hotkey.binding,
+                force_paste_binding=self._config.force_paste_binding,
+                ollama_ok=self._ollama_ok,
+                ollama_model=self._config.cleanup.model,
+                cuda_status=_cuda_status(getattr(self._vsr, "device", self._config.vsr.device)),
+                message=message,
+                clipboard_restore_deadline_ns=clipboard_restore_deadline_ns,
+                pending_force_paste=pending_force_paste,
+                created_at_ns=self._deps.now_ns(),
+            )
+        )
 
     # --- Context management -----------------------------------------------
 
@@ -368,8 +426,10 @@ class SilentDictatePipeline:
         try:
             if hasattr(self._cleaner, "is_available"):
                 probe = bool(self._cleaner.is_available())
+                self._ollama_ok = probe
                 logger.info("silent_dictate: cleanup reachable=%s", probe)
         except Exception:
+            self._ollama_ok = False
             logger.warning("silent_dictate: cleanup probe failed", exc_info=True)
 
         self._roi_cm = self._deps.roi_factory(self._config.lip_roi)
@@ -406,6 +466,7 @@ class SilentDictatePipeline:
             self._config.force_paste_mode,
             self._config.dry_run,
         )
+        self._emit_status("idle")
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -433,11 +494,11 @@ class SilentDictatePipeline:
         if active is not None:
             active.stop_event.set()
             if active.capture_thread is not None:
-                active.capture_thread.join(timeout=1.0)
+                _safe_join(active.capture_thread, timeout=1.0)
             self._close_per_trigger_webcam(active)
 
         for thread in dispatch_threads:
-            thread.join(timeout=2.0)
+            _safe_join(thread, timeout=2.0)
 
         for hk in (self._primary_hk, self._force_hk):
             if hk is not None:
@@ -501,6 +562,7 @@ class SilentDictatePipeline:
                 "reason": event.reason,
             }
         )
+        self._emit_status("recording", utterance_id=utterance_id)
 
         try:
             if self._config.keep_camera_open and self._persistent_webcam is not None:
@@ -553,6 +615,7 @@ class SilentDictatePipeline:
                 "face_missing": active.face_missing,
             }
         )
+        self._emit_status("decoding", utterance_id=active.utterance_id)
 
         thread = threading.Thread(
             target=self._dispatch_utterance,
@@ -675,6 +738,7 @@ class SilentDictatePipeline:
 
         # VSR inference.
         assert self._vsr is not None
+        self._emit_status("decoding", utterance_id=active.utterance_id)
         vsr_t0 = self._deps.perf_counter()
         try:
             vsr_result: VSRResult = self._vsr.predict(active.frames)
@@ -702,6 +766,7 @@ class SilentDictatePipeline:
 
         # Cleanup.
         assert self._cleaner is not None
+        self._emit_status("cleaning", utterance_id=active.utterance_id)
         cleanup_ctx = CleanupContext(source="vsr", register_hint="dictation")
         cleanup_t0 = self._deps.perf_counter()
         try:
@@ -728,7 +793,16 @@ class SilentDictatePipeline:
             return
 
         # Paste (or dry-run).
-        inject_ms, inject_decision, inject_error = self._perform_paste(cleaned.text, base_decision=decision)
+        self._emit_status("pasting", utterance_id=active.utterance_id)
+        inject_ms, inject_decision, inject_error, restore_deadline = self._perform_paste(
+            cleaned.text, base_decision=decision
+        )
+        if restore_deadline is not None:
+            self._emit_status(
+                "pasting",
+                utterance_id=active.utterance_id,
+                clipboard_restore_deadline_ns=restore_deadline,
+            )
 
         self._emit_final(
             active=active,
@@ -761,21 +835,25 @@ class SilentDictatePipeline:
         text: str,
         *,
         base_decision: PasteDecision,
-    ) -> tuple[float, PasteDecision, str | None]:
-        """Run the paste step (or dry-run) and return ``(latency_ms, decision, error)``."""
+    ) -> tuple[float, PasteDecision, str | None, int | None]:
+        """Run paste/dry-run and return latency, decision, error, restore deadline."""
         if self._config.dry_run:
             print(text)
-            return 0.0, "dry_run", None
+            return 0.0, "dry_run", None, None
         try:
             cfg = self._config.inject
             result = self._deps.paste_fn(text, cfg)
         except Exception as exc:
             logger.exception("silent_dictate: paste failed")
-            return 0.0, "error", f"paste_error: {exc}"
+            return 0.0, "error", f"paste_error: {exc}", None
+        restore_deadline_ns = None
+        if getattr(result, "error", None) is None:
+            restore_deadline_ns = self._deps.now_ns() + (cfg.restore_delay_ms * 1_000_000)
         return (
             float(getattr(result, "latency_ms", 0.0)),
             base_decision,
             getattr(result, "error", None),
+            restore_deadline_ns,
         )
 
     # --- Force-paste listener --------------------------------------------
@@ -836,8 +914,15 @@ class SilentDictatePipeline:
         with self._state_lock:
             self._pending[active.utterance_id] = entry
         timer.start()
+        self._emit_status(
+            "idle",
+            utterance_id=active.utterance_id,
+            message=f"{self._config.force_paste_binding.upper()} to paste anyway",
+            pending_force_paste=True,
+        )
         logger.info(
-            "silent_dictate: utterance %s withheld (confidence=%.2f); press %s within %d ms to paste",
+            "silent_dictate: utterance %s withheld (confidence=%.2f); "
+            "press %s within %d ms to paste",
             active.utterance_id,
             vsr_result.confidence,
             self._config.force_paste_binding,
@@ -866,7 +951,16 @@ class SilentDictatePipeline:
             }
         )
 
-        inject_ms, decision, error = self._perform_paste(entry.text_final, base_decision="force_pasted")
+        self._emit_status("pasting", utterance_id=entry.utterance_id)
+        inject_ms, decision, error, restore_deadline = self._perform_paste(
+            entry.text_final, base_decision="force_pasted"
+        )
+        if restore_deadline is not None:
+            self._emit_status(
+                "pasting",
+                utterance_id=entry.utterance_id,
+                clipboard_restore_deadline_ns=restore_deadline,
+            )
 
         ended_at_ns = self._deps.now_ns()
         total_ms = (self._deps.perf_counter() - entry.t0_perf) * 1000.0
@@ -988,6 +1082,10 @@ class SilentDictatePipeline:
                 "confidence": processed.confidence,
                 "used_fallback": processed.used_fallback,
                 "decision": processed.decision,
+                "cleanup": {
+                    "prompt_version": self._config.cleanup.prompt_version,
+                    "used_fallback": processed.used_fallback,
+                },
                 "latencies": processed.latencies,
                 "frame_count": processed.frame_count,
                 "face_present_ratio": processed.face_present_ratio,
@@ -1009,6 +1107,7 @@ class SilentDictatePipeline:
             f"decision={processed.decision} frames={processed.frame_count} "
             f"face_ratio={processed.face_present_ratio:.2f} "
             f"confidence={processed.confidence:.2f} device={device} "
+            f"prompt={self._config.cleanup.prompt_version} "
             f"fallback={processed.used_fallback} [{breakdown}]"
         )
         if processed.error:
@@ -1026,6 +1125,22 @@ class SilentDictatePipeline:
             logger.exception("silent_dictate: failed to append latency row")
 
         self._notify(processed)
+        self._emit_status("idle", utterance_id=processed.utterance_id)
+
+
+# --- Helpers --------------------------------------------------------------
+
+
+def _safe_join(thread: threading.Thread, *, timeout: float) -> None:
+    """Join a thread while tolerating shutdown before ``thread.start()`` wins."""
+
+    try:
+        thread.join(timeout=timeout)
+    except RuntimeError:
+        logger.debug(
+            "silent_dictate: skipped join for thread %r (not yet started)",
+            thread.name,
+        )
 
 
 # --- Config loader --------------------------------------------------------
@@ -1087,13 +1202,18 @@ def run_silent_dictate(
     *,
     deps: _Deps | None = None,
     stop_event: threading.Event | None = None,
+    ui: UiMode = "tui",
 ) -> int:
     """Run the pipeline until ``stop_event`` is set or Ctrl+C arrives."""
     cfg = config or SilentDictateConfig()
     stop = stop_event if stop_event is not None else threading.Event()
+    ui_mode = normalize_ui_mode(ui)
 
     print(
-        "sabi silent-dictate: binding={binding}  force_paste={fmode}({fbind})  dry_run={dry}".format(
+        (
+            "sabi silent-dictate: binding={binding}  "
+            "force_paste={fmode}({fbind})  dry_run={dry}"
+        ).format(
             binding=cfg.hotkey.binding,
             fmode=cfg.force_paste_mode,
             fbind=cfg.force_paste_binding,
@@ -1102,25 +1222,68 @@ def run_silent_dictate(
     )
     print("Hold the hotkey to dictate. Ctrl+C to exit.")
 
-    with SilentDictatePipeline(cfg, deps=deps) as pipeline:
-        def _on_event(ev: UtteranceProcessed) -> None:
-            line = (
-                f"[{ev.decision.upper()}] id={ev.utterance_id} "
-                f"text={ev.text_final!r} conf={ev.confidence:.2f} "
-                f"frames={ev.frame_count} total_ms={ev.latencies['total_ms']:.0f}"
-            )
-            if ev.error:
-                line += f" error={ev.error}"
-            print(line)
+    status_tui = None
+    if ui_mode == "tui":
+        from sabi.ui.status_tui import StatusTUI
 
-        pipeline.subscribe(_on_event)
-        try:
-            while not stop.is_set():
-                stop.wait(timeout=0.5)
-        except KeyboardInterrupt:
-            print("\nexiting...")
-            stop.set()
+        status_tui = StatusTUI()
+        status_tui.handle_status(_initial_silent_status(cfg))
+        status_tui.start()
+
+    pipeline = SilentDictatePipeline(cfg, deps=deps)
+    if status_tui is not None:
+        pipeline.subscribe_status(status_tui.handle_status)
+        pipeline.subscribe(status_tui.handle_utterance)
+    else:
+        pipeline.subscribe(_print_silent_event)
+
+    try:
+        with pipeline:
+            try:
+                while not stop.is_set():
+                    stop.wait(timeout=0.5)
+            except KeyboardInterrupt:
+                print("\nexiting...")
+                stop.set()
+    finally:
+        if status_tui is not None:
+            status_tui.stop()
     return 0
+
+
+def _initial_silent_status(cfg: SilentDictateConfig) -> PipelineStatusEvent:
+    return PipelineStatusEvent(
+        pipeline="silent",
+        mode="idle",
+        hotkey_binding=cfg.hotkey.binding,
+        force_paste_binding=cfg.force_paste_binding,
+        ollama_ok=None,
+        ollama_model=cfg.cleanup.model,
+        cuda_status=_cuda_status(cfg.vsr.device),
+        created_at_ns=time.monotonic_ns(),
+    )
+
+
+def _print_silent_event(ev: UtteranceProcessed) -> None:
+    line = (
+        f"[{ev.decision.upper()}] id={ev.utterance_id} "
+        f"text={ev.text_final!r} conf={ev.confidence:.2f} "
+        f"frames={ev.frame_count} total_ms={ev.latencies['total_ms']:.0f}"
+    )
+    if ev.error:
+        line += f" error={ev.error}"
+    print(line)
+
+
+def _cuda_status(device: Any) -> str:
+    try:
+        import torch
+
+        available = bool(torch.cuda.is_available())
+    except Exception:
+        available = False
+    selected = str(device or "auto")
+    return f"{selected} ({'available' if available else 'unavailable'})"
 
 
 __all__ = [

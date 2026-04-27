@@ -1,4 +1,4 @@
-# TICKET-019 - Meeting-register cleanup prompt
+# TICKET-022 - Meeting-register cleanup prompt
 
 Phase: 1 - ML PoC
 Epic: Cleanup
@@ -27,13 +27,14 @@ None new.
   - Do not add information the user did not produce.
   - Output plain sentence text, no markdown, no quotes.
 - Wire the register into the existing `TextCleaner` API:
-  - `CleanupContext.register_hint` is already defined in TICKET-008 with values `"dictation" | "meeting" | "chat"`. This ticket flips the code path so `"meeting"` loads `prompts/meeting.txt` instead of `prompts/default.txt`. Keep a dict `_REGISTER_TO_PROMPT_PATH` so adding registers stays a one-line change.
+  - `CleanupContext.register_hint` is already defined in TICKET-008 with values `"dictation" | "meeting" | "chat"`. This ticket flips the code path so `"meeting"` loads `prompts/meeting.txt` instead of the dictation prompt.
+  - If TICKET-018 has already shipped, the prompt-resolution table is keyed `(prompt_version, register) -> path`; this ticket adds a `(version, "meeting")` row for whichever prompt versions exist (initially just `("v1", "meeting")` pointing at `prompts/meeting.txt`). If TICKET-018 has not shipped yet, keep a simpler `_REGISTER_TO_PROMPT_PATH: dict[str, Path]` and let TICKET-018 generalize it later. Either way, adding registers stays a one-line change.
   - Add a `meeting_max_output_tokens` override (default 384) because meeting sentences can be a bit longer than chat-style dictation.
 - Extend `tests/test_cleanup.py` with cases:
   - `register_hint="meeting"` loads the meeting prompt (assert via the mock transport receiving the expected system-prompt fingerprint).
   - A mouthed phrase with natural fillers ("so, what I'm thinking is we could ship by friday, yeah") passes through with fillers preserved (assert the mock-returned text is untouched by pre/post-processing beyond whitespace).
   - An obvious upstream artifact ("[[unclear]] so I was saying") is removed by prompt instruction (testable via a fixture response from the mock, not by running the real model).
-- Add prompt-level A/B doc `docs/cleanup-prompt.md` already created in TICKET-008 - extend with a "Meeting register" section explaining the specific trade-offs and how to measure regression when changing the prompt. The A/B harness will live in TICKET-024's listening-test eval.
+- Add prompt-level A/B doc `docs/cleanup-prompt.md` already created in TICKET-008 - extend with a "Meeting register" section explaining the specific trade-offs and how to measure regression when changing the prompt. The A/B harness will live in TICKET-027's listening-test eval.
 
 ## Acceptance criteria
 
@@ -49,6 +50,7 @@ None new.
 - Persona / tone selection (formal vs casual vs technical) - future work; PoC ships one meeting register.
 - Auto-learning from user corrections - Phase 3 personalization, explicit roadmap item.
 - Full app-aware tone switching (Slack vs Docs vs code) - TICKET-008 already flags this as deferred.
+- Prompt-version A/B for the meeting register - TICKET-018 owns the prompt-version axis for the dictation register; extending it to the meeting register lands as a follow-up after this ticket and TICKET-018 are both in.
 
 ## Notes
 

@@ -17,10 +17,10 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from sabi.capture.microphone import MicConfig, Utterance
+from sabi.capture.microphone import Utterance
 from sabi.cleanup.ollama import CleanedText
 from sabi.input.hotkey import HotkeyConfig, TriggerBus, TriggerEvent
-from sabi.models.asr import ASRModelConfig, ASRResult
+from sabi.models.asr import ASRResult
 from sabi.output.inject import InjectConfig, InjectResult
 from sabi.pipelines.audio_dictate import (
     AudioDictateConfig,
@@ -29,7 +29,7 @@ from sabi.pipelines.audio_dictate import (
     _Deps,
     load_audio_dictate_config,
 )
-
+from sabi.pipelines.events import PipelineStatusEvent
 
 # --- Fakes ----------------------------------------------------------------
 
@@ -455,8 +455,10 @@ def test_ptt_happy_path_pastes_and_logs(tmp_path: Path) -> None:
     cfg = _ptt_cfg(tmp_path)
     pipeline, bag = _build(cfg=cfg)
     events: list[UtteranceProcessed] = []
+    status_events: list[PipelineStatusEvent] = []
     with pipeline as p:
         p.subscribe(events.append)
+        p.subscribe_status(status_events.append)
         primary = bag["hotkey_factory"].primary
         assert primary is not None
         _fire_ptt(primary, hold_ms=40)
@@ -471,6 +473,12 @@ def test_ptt_happy_path_pastes_and_logs(tmp_path: Path) -> None:
     assert ev.trigger_mode == "push_to_talk"
     assert bag["paste"].calls == [("hello world", cfg.inject)]
     assert bag["asr"].transcribe_calls
+    modes = [ev.mode for ev in status_events]
+    assert "recording" in modes
+    assert "decoding" in modes
+    assert "cleaning" in modes
+    assert "pasting" in modes
+    assert modes[-1] == "idle"
 
     rows = bag["latency"].rows
     assert len(rows) == 1
@@ -497,6 +505,7 @@ def test_ptt_happy_path_pastes_and_logs(tmp_path: Path) -> None:
         "total_ms",
     }
     assert utter["pipeline"] == "audio"
+    assert utter["cleanup"]["prompt_version"] == "v1"
 
 
 def test_ptt_ollama_fallback_still_pastes(tmp_path: Path) -> None:

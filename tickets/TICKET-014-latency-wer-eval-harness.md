@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: Eval
 Estimate: L
 Depends on: TICKET-011, TICKET-012
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -52,13 +52,13 @@ All three are evaluation-only; mark them under `[project.optional-dependencies].
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi eval --dataset data/eval/sample --out reports/poc-eval-test.md` on a freshly populated sample dataset produces a readable markdown report with WER and latency tables.
-- [ ] `data/eval/phrases.sample.jsonl` is committed with 20 Harvard sentences and empty media paths so a new dev can drop in their recordings and run eval.
-- [ ] Per-stage percentile math is correct, verified by a unit test feeding known latency arrays through the aggregator.
-- [ ] The harness runs fully offline - no webcam, mic, or hotkey accessed.
-- [ ] `reports/poc-eval-<date>.md` is git-ignored by default (only `reports/latency-log.md` is committed).
-- [ ] Running with Ollama off still completes; the report shows `cleanup: bypassed` and the cleaned-WER column equals the raw-WER column.
-- [ ] `pip install -e .[eval]` installs jiwer/pandas/tabulate; the base install still works without them (harness import wrapped in a try/except that prints a helpful message).
+- [x] `python -m sabi eval --dataset data/eval/sample --out reports/poc-eval-test.md` on a freshly populated sample dataset produces a readable markdown report with WER and latency tables.
+- [x] `data/eval/phrases.sample.jsonl` is committed with 20 Harvard sentences and empty media paths so a new dev can drop in their recordings and run eval.
+- [x] Per-stage percentile math is correct, verified by a unit test feeding known latency arrays through the aggregator.
+- [x] The harness runs fully offline - no webcam, mic, or hotkey accessed.
+- [x] `reports/poc-eval-<date>.md` is git-ignored by default (only `reports/latency-log.md` is committed).
+- [x] Running with Ollama off still completes; the report shows `cleanup: bypassed` and the cleaned-WER column equals the raw-WER column.
+- [x] `pip install -e .[eval]` installs jiwer/pandas/tabulate; the base install still works without them (harness import wrapped in a try/except that prints a helpful message).
 
 ## Out of scope
 

@@ -20,6 +20,16 @@ app = typer.Typer(
 )
 
 
+def _normalize_cleanup_prompt(value: str, *, param_hint: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in {"v1", "v2"}:
+        raise typer.BadParameter(
+            f"{param_hint} must be v1 or v2, got {value!r}",
+            param_hint=param_hint,
+        )
+    return normalized
+
+
 @app.callback()
 def _root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
@@ -288,6 +298,99 @@ def asr_smoke_cmd(
     )
 
 
+@app.command("fusion-smoke")
+def fusion_smoke_cmd(
+    asr_json: Path | None = typer.Argument(
+        None,
+        help="Optional JSON file matching ASRResult fields.",
+    ),
+    vsr_json: Path | None = typer.Argument(
+        None,
+        help="Optional JSON file matching VSRResult fields.",
+    ),
+    config_path: Path | None = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Override path to configs/fusion.toml.",
+    ),
+    asr_text: str = typer.Option("", "--asr-text", help="Synthetic ASR transcript."),
+    vsr_text: str = typer.Option("", "--vsr-text", help="Synthetic VSR transcript."),
+    asr_conf: float = typer.Option(0.7, "--asr-conf", min=0.0, max=1.0),
+    vsr_conf: float = typer.Option(0.5, "--vsr-conf", min=0.0, max=1.0),
+) -> None:
+    """Run pure ASR/VSR transcript fusion without loading models."""
+
+    import json
+
+    from sabi.fusion import FusionCombiner, load_fusion_config
+    from sabi.models.asr import ASRResult
+    from sabi.models.vsr.model import VSRResult
+
+    if asr_text == "--vsr-text" and asr_json is not None and vsr_json is None and not vsr_text:
+        # Windows PowerShell can drop an empty "" argument before Python sees it.
+        # Recover the documented `--asr-text "" --vsr-text "..."` smoke command.
+        vsr_text = str(asr_json)
+        asr_text = ""
+        asr_json = None
+
+    def _read_json(path: Path) -> dict:
+        if not path.is_file():
+            raise typer.BadParameter(f"JSON file not found: {path}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _asr_from_data(data: dict) -> ASRResult:
+        per_word = [
+            (str(item[0]), float(item[1]), float(item[2]), float(item[3]))
+            for item in data.get("per_word_confidence", [])
+        ]
+        return ASRResult(
+            text=str(data.get("text", "")),
+            segments=list(data.get("segments", [])),
+            confidence=float(data.get("confidence", 0.0)),
+            per_word_confidence=per_word,
+            avg_logprob=float(data.get("avg_logprob", 0.0)),
+            latency_ms=float(data.get("latency_ms", 0.0)),
+            language=data.get("language"),
+            device=str(data.get("device", "cpu")),
+        )
+
+    def _vsr_from_data(data: dict) -> VSRResult:
+        scores = data.get("per_token_scores")
+        return VSRResult(
+            text=str(data.get("text", "")),
+            confidence=float(data.get("confidence", 0.0)),
+            per_token_scores=None if scores is None else tuple(float(s) for s in scores),
+            latency_ms=float(data.get("latency_ms", 0.0)),
+        )
+
+    if asr_json is not None or vsr_json is not None:
+        if asr_json is None or vsr_json is None:
+            raise typer.BadParameter("pass both ASR and VSR JSON files, or use text shortcuts")
+        asr = _asr_from_data(_read_json(asr_json))
+        vsr = _vsr_from_data(_read_json(vsr_json))
+    else:
+        asr_tokens = asr_text.split()
+        vsr_tokens = vsr_text.split()
+        asr = ASRResult(
+            text=asr_text,
+            confidence=asr_conf,
+            per_word_confidence=[(w, 0.0, 0.0, asr_conf) for w in asr_tokens],
+        )
+        vsr = VSRResult(
+            text=vsr_text,
+            confidence=vsr_conf,
+            per_token_scores=tuple(vsr_conf for _ in vsr_tokens),
+            latency_ms=0.0,
+        )
+
+    result = FusionCombiner(load_fusion_config(config_path)).combine(asr, vsr)
+    typer.echo(json.dumps(result.to_dict(), indent=2))
+
+
 @app.command("cleanup-smoke")
 def cleanup_smoke_cmd(
     text: str = typer.Argument(
@@ -317,6 +420,11 @@ def cleanup_smoke_cmd(
         0,
         "--timeout-ms",
         help="Override cleanup request timeout in milliseconds.",
+    ),
+    prompt_version: str = typer.Option(
+        "",
+        "--prompt-version",
+        help="Cleanup prompt version: v1|v2. Empty = use config.",
     ),
     source: str = typer.Option(
         "asr",
@@ -351,6 +459,11 @@ def cleanup_smoke_cmd(
         overrides["model"] = model
     if timeout_ms > 0:
         overrides["timeout_ms"] = timeout_ms
+    if prompt_version:
+        overrides["prompt_version"] = _normalize_cleanup_prompt(
+            prompt_version,
+            param_hint="--prompt-version",
+        )
     if overrides:
         cfg = cfg.model_copy(update=overrides)
 
@@ -366,7 +479,7 @@ def cleanup_smoke_cmd(
 
     hardware = "ollama" if probe_ok and not result.used_fallback else "fallback"
     notes = (
-        f"model={cfg.model} source={context.source} "
+        f"model={cfg.model} prompt_version={cfg.prompt_version} source={context.source} "
         f"fallback={result.used_fallback}"
     )
     if result.reason:
@@ -383,6 +496,7 @@ def cleanup_smoke_cmd(
     print(f"raw      : {text!r}")
     print(f"cleaned  : {result.text!r}")
     print(f"latency  : {result.latency_ms:.1f} ms")
+    print(f"prompt   : {cfg.prompt_version}")
     print(f"fallback : {result.used_fallback}")
     if result.reason:
         print(f"reason   : {result.reason}")
@@ -392,7 +506,10 @@ def cleanup_smoke_cmd(
 
 @app.command("paste-test")
 def paste_test_cmd(
-    text: str = typer.Argument(..., help="Text to paste into whichever window is focused after the countdown."),
+    text: str = typer.Argument(
+        ...,
+        help="Text to paste into whichever window is focused after the countdown.",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -401,7 +518,10 @@ def paste_test_cmd(
     paste_delay_ms: int = typer.Option(
         15,
         "--paste-delay-ms",
-        help="Delay between clipboard write and Ctrl+V (ms). 15 ms is the smallest reliable value on Slack Desktop.",
+        help=(
+            "Delay between clipboard write and Ctrl+V (ms). "
+            "15 ms is the smallest reliable value on Slack Desktop."
+        ),
     ),
     restore_delay_ms: int = typer.Option(
         400,
@@ -559,12 +679,22 @@ def silent_dictate_cmd(
         "--force-paste",
         help="Force-paste policy: listener|always|never.",
     ),
+    cleanup_prompt: str = typer.Option(
+        "",
+        "--cleanup-prompt",
+        help="Cleanup prompt version: v1|v2. Empty = use config.",
+    ),
+    ui: str = typer.Option(
+        "tui",
+        "--ui",
+        help="Status UI: tui|none.",
+    ),
 ) -> None:
     """Silent-dictation pipeline (TICKET-011)."""
 
     import logging
 
-    from sabi.pipelines import load_silent_dictate_config, run_silent_dictate
+    from sabi.pipelines import load_silent_dictate_config, normalize_ui_mode, run_silent_dictate
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -585,10 +715,24 @@ def silent_dictate_cmd(
         overrides["confidence_floor"] = confidence_floor
     if force_paste_mode:
         overrides["force_paste_mode"] = force_paste_mode  # type: ignore[assignment]
+    if cleanup_prompt:
+        overrides["cleanup"] = cfg.cleanup.model_copy(
+            update={
+                "prompt_version": _normalize_cleanup_prompt(
+                    cleanup_prompt,
+                    param_hint="--cleanup-prompt",
+                )
+            }
+        )
     if overrides:
         cfg = cfg.model_copy(update=overrides)
 
-    raise typer.Exit(run_silent_dictate(cfg))
+    try:
+        ui_mode = normalize_ui_mode(ui)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--ui") from exc
+
+    raise typer.Exit(run_silent_dictate(cfg, ui=ui_mode))
 
 
 @app.command("dictate")
@@ -645,12 +789,22 @@ def dictate_cmd(
             "Applied to both PTT and VAD fields when provided."
         ),
     ),
+    cleanup_prompt: str = typer.Option(
+        "",
+        "--cleanup-prompt",
+        help="Cleanup prompt version: v1|v2. Empty = use config.",
+    ),
+    ui: str = typer.Option(
+        "tui",
+        "--ui",
+        help="Status UI: tui|none.",
+    ),
 ) -> None:
     """Audio-dictation pipeline (TICKET-012)."""
 
     import logging
 
-    from sabi.pipelines import load_audio_dictate_config, run_audio_dictate
+    from sabi.pipelines import load_audio_dictate_config, normalize_ui_mode, run_audio_dictate
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -686,10 +840,224 @@ def dictate_cmd(
             )
         overrides["force_paste_mode_ptt"] = normalized_fpm  # type: ignore[assignment]
         overrides["force_paste_mode_vad"] = normalized_fpm  # type: ignore[assignment]
+    if cleanup_prompt:
+        overrides["cleanup"] = cfg.cleanup.model_copy(
+            update={
+                "prompt_version": _normalize_cleanup_prompt(
+                    cleanup_prompt,
+                    param_hint="--cleanup-prompt",
+                )
+            }
+        )
     if overrides:
         cfg = cfg.model_copy(update=overrides)
 
-    raise typer.Exit(run_audio_dictate(cfg))
+    try:
+        ui_mode = normalize_ui_mode(ui)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--ui") from exc
+
+    raise typer.Exit(run_audio_dictate(cfg, ui=ui_mode))
+
+
+@app.command("fused-dictate")
+def fused_dictate_cmd(
+    config_path: Path = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Override path to configs/fused_dictate.toml.",
+    ),
+    mode: str = typer.Option(
+        "",
+        "--mode",
+        help="Fusion mode override: auto|audio_primary|vsr_primary.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the cleaned text to stdout instead of pasting.",
+    ),
+    no_parallel: bool = typer.Option(
+        False,
+        "--no-parallel",
+        help="Run VSR then ASR serially instead of in parallel.",
+    ),
+    force_cpu: bool = typer.Option(
+        False,
+        "--force-cpu",
+        help="Force ASR and VSR onto CPU.",
+    ),
+    binding: str = typer.Option(
+        "",
+        "--binding",
+        help="Override the primary hotkey chord.",
+    ),
+    force_paste_binding: str = typer.Option(
+        "",
+        "--force-paste-binding",
+        help="Override the force-paste chord.",
+    ),
+    confidence_floor: float = typer.Option(
+        -1.0,
+        "--confidence-floor",
+        help="Override fused confidence floor for paste gating. Negative = use config.",
+    ),
+    force_paste_mode: str = typer.Option(
+        "",
+        "--force-paste",
+        help="Force-paste policy: listener|always|never.",
+    ),
+    cleanup_prompt: str = typer.Option(
+        "",
+        "--cleanup-prompt",
+        help="Cleanup prompt version: v1|v2. Empty = use config.",
+    ),
+    ui: str = typer.Option(
+        "tui",
+        "--ui",
+        help="Status UI: tui|none.",
+    ),
+) -> None:
+    """Fused audio-visual dictation pipeline (TICKET-017)."""
+
+    import logging
+
+    from sabi.pipelines import load_fused_dictate_config, normalize_ui_mode, run_fused_dictate
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    cfg = load_fused_dictate_config(config_path)
+    overrides: dict[str, object] = {}
+    if mode:
+        normalized = mode.strip().lower()
+        if normalized not in {"auto", "audio_primary", "vsr_primary"}:
+            raise typer.BadParameter(
+                f"--mode must be auto|audio_primary|vsr_primary, got {mode!r}",
+                param_hint="--mode",
+            )
+        overrides["fusion"] = cfg.fusion.model_copy(update={"mode": normalized})
+    if dry_run:
+        overrides["dry_run"] = True
+    if no_parallel:
+        overrides["parallel"] = False
+    if force_cpu:
+        overrides["device_override"] = "cpu"
+    if binding:
+        overrides["hotkey"] = cfg.hotkey.model_copy(update={"binding": binding})
+    if force_paste_binding:
+        overrides["force_paste_binding"] = force_paste_binding
+    if confidence_floor >= 0.0:
+        overrides["paste_floor_confidence"] = confidence_floor
+    if force_paste_mode:
+        normalized_fpm = force_paste_mode.strip().lower()
+        if normalized_fpm not in {"listener", "always", "never"}:
+            raise typer.BadParameter(
+                f"--force-paste must be listener|always|never, got {force_paste_mode!r}",
+                param_hint="--force-paste",
+            )
+        overrides["force_paste_mode_fused"] = normalized_fpm
+    if cleanup_prompt:
+        overrides["cleanup"] = cfg.cleanup.model_copy(
+            update={
+                "prompt_version": _normalize_cleanup_prompt(
+                    cleanup_prompt,
+                    param_hint="--cleanup-prompt",
+                )
+            }
+        )
+    if overrides:
+        cfg = cfg.model_copy(update=overrides)
+    try:
+        ui_mode = normalize_ui_mode(ui)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--ui") from exc
+    raise typer.Exit(run_fused_dictate(cfg, ui=ui_mode))
+
+
+@app.command("eval")
+def eval_cmd(
+    dataset: Path = typer.Option(
+        ...,
+        "--dataset",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Dataset directory containing phrases.jsonl, or a phrases JSONL file.",
+    ),
+    runs: int = typer.Option(3, "--runs", min=1, help="Measured runs per phrase."),
+    warmups: int = typer.Option(1, "--warmups", min=0, help="Warm-up runs per phrase."),
+    pipeline: str = typer.Option(
+        "both",
+        "--pipeline",
+        "--pipelines",
+        help="Pipeline selection: both|silent|audio|fused.",
+    ),
+    cleanup_prompt: str = typer.Option(
+        "v1",
+        "--cleanup-prompt",
+        help="Cleanup prompt versions: v1 or v1,v2.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        file_okay=True,
+        dir_okay=False,
+        writable=True,
+        help="Markdown report output path. Defaults to reports/poc-eval-<date>.md.",
+    ),
+) -> None:
+    """Offline latency + WER eval harness (TICKET-014)."""
+
+    import logging
+
+    from sabi.eval import EvalConfig, MissingEvalDependencyError, run_eval
+    from sabi.eval.harness import require_eval_dependencies
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    normalized = pipeline.strip().lower()
+    if normalized not in {"both", "silent", "audio", "fused"}:
+        raise typer.BadParameter(
+            f"--pipeline must be both|silent|audio|fused, got {pipeline!r}",
+            param_hint="--pipeline",
+        )
+    cleanup_prompts = tuple(
+        _normalize_cleanup_prompt(part, param_hint="--cleanup-prompt")
+        for part in cleanup_prompt.split(",")
+        if part.strip()
+    )
+    if not cleanup_prompts:
+        raise typer.BadParameter(
+            "--cleanup-prompt must include v1 or v2",
+            param_hint="--cleanup-prompt",
+        )
+    if len(set(cleanup_prompts)) != len(cleanup_prompts):
+        raise typer.BadParameter(
+            "--cleanup-prompt contains duplicate versions",
+            param_hint="--cleanup-prompt",
+        )
+    try:
+        require_eval_dependencies()
+    except MissingEvalDependencyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    result = run_eval(
+        EvalConfig(
+            dataset_path=dataset,
+            runs=runs,
+            warmups=warmups,
+            pipeline=normalized,  # type: ignore[arg-type]
+            cleanup_prompts=cleanup_prompts,  # type: ignore[arg-type]
+            out_path=out,
+        )
+    )
+    typer.echo(f"Wrote eval report: {result.report_path}")
+    typer.echo(f"Records: {len(result.records)}")
 
 
 def main() -> None:

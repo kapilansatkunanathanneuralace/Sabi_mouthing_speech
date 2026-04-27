@@ -1,9 +1,9 @@
-# TICKET-023 - Meeting mute / unmute instant toggle
+# TICKET-026 - Meeting mute / unmute instant toggle
 
 Phase: 1 - ML PoC
 Epic: Orchestration
 Estimate: S
-Depends on: TICKET-018, TICKET-022
+Depends on: TICKET-021, TICKET-025
 Status: Not started
 
 ## Goal
@@ -24,11 +24,11 @@ None new.
 - Define `MeetingMuteConfig` (binding default `Ctrl+Alt+M`, start_state `"muted"` (safer default - user unmutes explicitly once the pipeline is warm), drop_buffer_on_mute True, audible_confirmation False (no click/beep by default)).
 - Implement `MeetingMuteController`:
   - Registers the hotkey via `HotkeyController` (TICKET-010) using its toggle semantics - does **not** drive the orchestrator's mode machine, since muting and mode-switching are independent.
-  - Owns a reference to the live `VirtualMicSink` (injected by TICKET-022 on pipeline start).
+  - Owns a reference to the live `VirtualMicSink` (injected by TICKET-025 on pipeline start).
   - `.mute()`: calls `sink.mute(True)` and, if `drop_buffer_on_mute`, also calls `sink.drop_queued()`. Sets an internal state flag and emits a `MeetingMuteEvent` for the TUI (TICKET-013) to render.
   - `.unmute()`: calls `sink.mute(False)`. Does not touch the queue - on unmute, the *next* TTS synthesis feeds in normally.
   - The mute hotkey path is constant-time and allocation-free - it can reach the sink bit flip in under 1 ms.
-- Ensure the mute hotkey works even when the orchestrator's privacy switch (TICKET-021) is on. They are separate concerns - privacy blocks all capture, while mute blocks meeting output specifically.
+- Ensure the mute hotkey works even when the orchestrator's privacy switch (TICKET-024) is on. They are separate concerns - privacy blocks all capture, while mute blocks meeting output specifically.
 - Extend TICKET-013's TUI to render a `MUTED` indicator in the header when the meeting pipeline is active and the sink is muted. Color consistently with the privacy switch indicator.
 - `scripts/mute_debug.py` runs the hotkey + a fake sink (in-memory buffer) and prints elapsed time from keypress to mute-bit flipped. Useful for verifying the 1 ms SLA.
 - CLI shortcut: `python -m sabi mute-debug`.

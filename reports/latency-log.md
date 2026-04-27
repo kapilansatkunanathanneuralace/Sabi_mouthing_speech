@@ -25,3 +25,13 @@ Append one row per pipeline run (see tickets/README.md).
 | TICKET-012 | windows | pipeline | 3938.0 | - | 1 | mode=push_to_talk decision=withheld_silence confidence=0.00 compute_type=int8_float16 device=cuda fallback=False [open=288 warm=309 cap=3960 asr=0 clean=0 inject=0] |
 | TICKET-012 | windows | pipeline | 5823.4 | - | 1 | mode=push_to_talk decision=pasted confidence=0.53 compute_type=int8_float16 device=cuda fallback=True [open=0 warm=0 cap=4640 asr=151 clean=804 inject=215] |
 | TICKET-012 | windows | pipeline | 7493.6 | - | 1 | mode=push_to_talk decision=pasted confidence=0.58 compute_type=int8_float16 device=cuda fallback=True [open=0 warm=0 cap=6400 asr=169 clean=802 inject=137] |
+| TICKET-011 | windows | pipeline | 65203.5 | - | 1 | decision=dry_run frames=1 face_ratio=1.00 confidence=1.00 device=cuda:0 fallback=True [open=1856 cap=0 roi=10 vsr=617 clean=802 inject=0] |
+| TICKET-011 | windows | pipeline | 8889.9 | - | 1 | decision=dry_run frames=1 face_ratio=1.00 confidence=1.00 device=cuda:0 fallback=True [open=5100 cap=0 roi=11 vsr=560 clean=805 inject=0] |
+| TICKET-011 | windows | pipeline | 8360.6 | - | 1 | decision=dry_run frames=60 face_ratio=1.00 confidence=1.00 device=cuda:0 fallback=True [open=1753 cap=2001 roi=519 vsr=1263 clean=813 inject=0] |
+| TICKET-012 | windows | pipeline | 3226.6 | - | 1 | mode=push_to_talk decision=dry_run confidence=0.58 compute_type=int8_float16 device=cuda fallback=True [open=1052 warm=222 cap=2280 asr=102 clean=805 inject=0] |
+| TICKET-012 | windows | pipeline | 4391.1 | - | 1 | mode=push_to_talk decision=dry_run confidence=0.72 compute_type=int8_float16 device=cuda fallback=True [open=0 warm=0 cap=3440 asr=115 clean=803 inject=0] |
+| TICKET-012 | windows | pipeline | 2767.5 | - | 1 | mode=push_to_talk decision=dry_run confidence=0.71 compute_type=int8_float16 device=cuda fallback=True [open=262 warm=210 cap=1880 asr=99 clean=803 inject=0] |
+| TICKET-008 | fallback | cleanup | 808.4 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=True reason=http_error: ReadTimeout |
+| TICKET-008 | fallback | cleanup | 805.9 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=True reason=http_error: ReadTimeout |
+| TICKET-008 | ollama | cleanup | 3089.9 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=False |
+| TICKET-008 | ollama | cleanup | 160.9 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=False |

@@ -14,6 +14,10 @@
 base_url = "http://127.0.0.1:11434"
 model = "llama3.2:3b-instruct-q4_K_M"
 
+[prompt]
+# TICKET-018: v1 is the default until v2 clears the eval promotion bar.
+prompt_version = "v1"
+
 [limits]
 # Full cleanup request timeout; the pipeline must stay under ~300-400 ms
 # on reference hardware to meet the PoC latency budget.

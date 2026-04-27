@@ -33,11 +33,10 @@ from __future__ import annotations
 
 import json
 import logging
-import queue
 import threading
 import time
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, ContextManager, Literal
@@ -58,7 +57,9 @@ from sabi.input.hotkey import (
 )
 from sabi.models.asr import ASRModel, ASRModelConfig, ASRResult
 from sabi.models.latency import append_latency_row
-from sabi.output.inject import InjectConfig, InjectResult, paste_text as _real_paste_text
+from sabi.output.inject import InjectConfig, InjectResult
+from sabi.output.inject import paste_text as _real_paste_text
+from sabi.pipelines.events import PipelinePhase, PipelineStatusEvent, UiMode, normalize_ui_mode
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +348,8 @@ class AudioDictatePipeline:
 
         self._state_lock = threading.RLock()
         self._subscribers: list[Callable[[UtteranceProcessed], None]] = []
+        self._status_subscribers: list[Callable[[PipelineStatusEvent], None]] = []
+        self._last_status: PipelineStatusEvent | None = None
         self._utterance_counter = 0
         self._active_ptt: _ActivePTT | None = None
         self._pending: dict[int, _PendingForcePaste] = {}
@@ -359,6 +362,7 @@ class AudioDictatePipeline:
         self._warmup_ms: float = 0.0
         self._mic_open_ms: float = 0.0
         self._mic_open_reported = False
+        self._ollama_ok: bool | None = None
 
         self._jsonl = jsonl_writer or _JsonlWriter(self._config.jsonl_dir)
         self._entered = False
@@ -379,6 +383,22 @@ class AudioDictatePipeline:
         with self._state_lock:
             self._subscribers.append(callback)
 
+    def subscribe_status(
+        self,
+        callback: Callable[[PipelineStatusEvent], None],
+        *,
+        replay: bool = True,
+    ) -> None:
+        """Register a callback for live phase/status updates."""
+        with self._state_lock:
+            self._status_subscribers.append(callback)
+            last = self._last_status
+        if replay and last is not None:
+            try:
+                callback(last)
+            except Exception:
+                logger.exception("audio_dictate status subscriber raised")
+
     def _notify(self, event: UtteranceProcessed) -> None:
         with self._state_lock:
             subs = list(self._subscribers)
@@ -387,6 +407,42 @@ class AudioDictatePipeline:
                 cb(event)
             except Exception:
                 logger.exception("audio_dictate subscriber raised")
+
+    def _notify_status(self, event: PipelineStatusEvent) -> None:
+        with self._state_lock:
+            self._last_status = event
+            subs = list(self._status_subscribers)
+        for cb in subs:
+            try:
+                cb(event)
+            except Exception:
+                logger.exception("audio_dictate status subscriber raised")
+
+    def _emit_status(
+        self,
+        mode: PipelinePhase,
+        *,
+        utterance_id: int | None = None,
+        message: str | None = None,
+        clipboard_restore_deadline_ns: int | None = None,
+        pending_force_paste: bool = False,
+    ) -> None:
+        self._notify_status(
+            PipelineStatusEvent(
+                pipeline="audio",
+                mode=mode,
+                utterance_id=utterance_id,
+                hotkey_binding=self._config.hotkey.binding,
+                force_paste_binding=self._config.force_paste_binding,
+                ollama_ok=self._ollama_ok,
+                ollama_model=self._config.cleanup.model,
+                cuda_status=_cuda_status(getattr(self._asr, "device", self._config.asr.device)),
+                message=message,
+                clipboard_restore_deadline_ns=clipboard_restore_deadline_ns,
+                pending_force_paste=pending_force_paste,
+                created_at_ns=self._deps.now_ns(),
+            )
+        )
 
     # --- Active force-paste policy helpers --------------------------------
 
@@ -419,8 +475,10 @@ class AudioDictatePipeline:
         try:
             if hasattr(self._cleaner, "is_available"):
                 probe = bool(self._cleaner.is_available())
+                self._ollama_ok = probe
                 logger.info("audio_dictate: cleanup reachable=%s", probe)
         except Exception:
+            self._ollama_ok = False
             logger.warning("audio_dictate: cleanup probe failed", exc_info=True)
 
         if self._should_preopen_mic():
@@ -464,6 +522,7 @@ class AudioDictatePipeline:
             self._active_force_paste_mode,
             self._config.dry_run,
         )
+        self._emit_status("idle")
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -601,6 +660,7 @@ class AudioDictatePipeline:
                 "reason": event.reason,
             }
         )
+        self._emit_status("recording", utterance_id=utterance_id)
 
         try:
             if self._config.ptt_open_per_trigger:
@@ -677,6 +737,7 @@ class AudioDictatePipeline:
                 "peak_dbfs": float(utt.peak_dbfs) if utt else float("-inf"),
             }
         )
+        self._emit_status("decoding", utterance_id=active.utterance_id)
 
         if self._config.ptt_open_per_trigger:
             self._close_per_trigger_mic(active)
@@ -734,6 +795,7 @@ class AudioDictatePipeline:
                 "reason": event.reason,
             }
         )
+        self._emit_status("recording", message="VAD active")
         if not was_active:
             logger.info("audio_dictate: VAD activated")
 
@@ -749,6 +811,7 @@ class AudioDictatePipeline:
                 "reason": event.reason,
             }
         )
+        self._emit_status("idle", message="VAD inactive")
         logger.info("audio_dictate: VAD deactivated")
 
     def _vad_consumer_loop(self) -> None:
@@ -895,6 +958,7 @@ class AudioDictatePipeline:
             return
 
         assert self._asr is not None
+        self._emit_status("decoding", utterance_id=utterance_id)
         asr_t0 = self._deps.perf_counter()
         try:
             asr_result: ASRResult = self._asr.transcribe(utt)
@@ -953,6 +1017,7 @@ class AudioDictatePipeline:
 
         # Cleanup.
         assert self._cleaner is not None
+        self._emit_status("cleaning", utterance_id=utterance_id)
         cleanup_ctx = CleanupContext(source="asr", register_hint="dictation")
         cleanup_t0 = self._deps.perf_counter()
         try:
@@ -983,9 +1048,16 @@ class AudioDictatePipeline:
             )
             return
 
-        inject_ms, inject_decision, inject_error = self._perform_paste(
+        self._emit_status("pasting", utterance_id=utterance_id)
+        inject_ms, inject_decision, inject_error, restore_deadline = self._perform_paste(
             cleaned.text, base_decision=decision
         )
+        if restore_deadline is not None:
+            self._emit_status(
+                "pasting",
+                utterance_id=utterance_id,
+                clipboard_restore_deadline_ns=restore_deadline,
+            )
         self._emit_final(
             utterance_id=utterance_id,
             started_at_ns=started_at_ns,
@@ -1022,21 +1094,25 @@ class AudioDictatePipeline:
         text: str,
         *,
         base_decision: PasteDecision,
-    ) -> tuple[float, PasteDecision, str | None]:
-        """Run the paste step (or dry-run) and return ``(latency_ms, decision, error)``."""
+    ) -> tuple[float, PasteDecision, str | None, int | None]:
+        """Run paste/dry-run and return latency, decision, error, restore deadline."""
         if self._config.dry_run:
             print(text)
-            return 0.0, "dry_run", None
+            return 0.0, "dry_run", None, None
         try:
             cfg = self._config.inject
             result = self._deps.paste_fn(text, cfg)
         except Exception as exc:
             logger.exception("audio_dictate: paste failed")
-            return 0.0, "error", f"paste_error: {exc}"
+            return 0.0, "error", f"paste_error: {exc}", None
+        restore_deadline_ns = None
+        if getattr(result, "error", None) is None:
+            restore_deadline_ns = self._deps.now_ns() + (cfg.restore_delay_ms * 1_000_000)
         return (
             float(getattr(result, "latency_ms", 0.0)),
             base_decision,
             getattr(result, "error", None),
+            restore_deadline_ns,
         )
 
     # --- Force-paste listener --------------------------------------------
@@ -1105,8 +1181,15 @@ class AudioDictatePipeline:
         with self._state_lock:
             self._pending[utterance_id] = entry
         timer.start()
+        self._emit_status(
+            "idle",
+            utterance_id=utterance_id,
+            message=f"{self._config.force_paste_binding.upper()} to paste anyway",
+            pending_force_paste=True,
+        )
         logger.info(
-            "audio_dictate: utterance %s withheld (confidence=%.2f); press %s within %d ms to paste",
+            "audio_dictate: utterance %s withheld (confidence=%.2f); "
+            "press %s within %d ms to paste",
             utterance_id,
             asr_result.confidence,
             self._config.force_paste_binding,
@@ -1135,9 +1218,16 @@ class AudioDictatePipeline:
             }
         )
 
-        inject_ms, decision, error = self._perform_paste(
+        self._emit_status("pasting", utterance_id=entry.utterance_id)
+        inject_ms, decision, error, restore_deadline = self._perform_paste(
             entry.text_final, base_decision="force_pasted"
         )
+        if restore_deadline is not None:
+            self._emit_status(
+                "pasting",
+                utterance_id=entry.utterance_id,
+                clipboard_restore_deadline_ns=restore_deadline,
+            )
 
         self._emit_final(
             utterance_id=entry.utterance_id,
@@ -1269,6 +1359,10 @@ class AudioDictatePipeline:
                 "confidence": processed.confidence,
                 "used_fallback": processed.used_fallback,
                 "decision": processed.decision,
+                "cleanup": {
+                    "prompt_version": self._config.cleanup.prompt_version,
+                    "used_fallback": processed.used_fallback,
+                },
                 "latencies": processed.latencies,
                 "duration_ms": processed.duration_ms,
                 "vad_coverage": processed.vad_coverage,
@@ -1292,6 +1386,7 @@ class AudioDictatePipeline:
             f"mode={processed.trigger_mode} decision={processed.decision} "
             f"confidence={processed.confidence:.2f} "
             f"compute_type={compute_type} device={device} "
+            f"prompt={self._config.cleanup.prompt_version} "
             f"fallback={processed.used_fallback} [{breakdown}]"
         )
         if processed.error:
@@ -1309,6 +1404,7 @@ class AudioDictatePipeline:
             logger.exception("audio_dictate: failed to append latency row")
 
         self._notify(processed)
+        self._emit_status("idle", utterance_id=processed.utterance_id)
 
 
 # --- Helpers --------------------------------------------------------------
@@ -1401,10 +1497,12 @@ def run_audio_dictate(
     *,
     deps: _Deps | None = None,
     stop_event: threading.Event | None = None,
+    ui: UiMode = "tui",
 ) -> int:
     """Run the pipeline until ``stop_event`` is set or Ctrl+C arrives."""
     cfg = config or AudioDictateConfig()
     stop = stop_event if stop_event is not None else threading.Event()
+    ui_mode = normalize_ui_mode(ui)
 
     active_force = (
         cfg.force_paste_mode_ptt
@@ -1429,25 +1527,68 @@ def run_audio_dictate(
             "Ctrl+C to exit."
         )
 
-    with AudioDictatePipeline(cfg, deps=deps) as pipeline:
-        def _on_event(ev: UtteranceProcessed) -> None:
-            line = (
-                f"[{ev.decision.upper()}] id={ev.utterance_id} "
-                f"text={ev.text_final!r} conf={ev.confidence:.2f} "
-                f"dur_ms={ev.duration_ms:.0f} total_ms={ev.latencies['total_ms']:.0f}"
-            )
-            if ev.error:
-                line += f" error={ev.error}"
-            print(line)
+    status_tui = None
+    if ui_mode == "tui":
+        from sabi.ui.status_tui import StatusTUI
 
-        pipeline.subscribe(_on_event)
-        try:
-            while not stop.is_set():
-                stop.wait(timeout=0.5)
-        except KeyboardInterrupt:
-            print("\nexiting...")
-            stop.set()
+        status_tui = StatusTUI()
+        status_tui.handle_status(_initial_audio_status(cfg))
+        status_tui.start()
+
+    pipeline = AudioDictatePipeline(cfg, deps=deps)
+    if status_tui is not None:
+        pipeline.subscribe_status(status_tui.handle_status)
+        pipeline.subscribe(status_tui.handle_utterance)
+    else:
+        pipeline.subscribe(_print_audio_event)
+
+    try:
+        with pipeline:
+            try:
+                while not stop.is_set():
+                    stop.wait(timeout=0.5)
+            except KeyboardInterrupt:
+                print("\nexiting...")
+                stop.set()
+    finally:
+        if status_tui is not None:
+            status_tui.stop()
     return 0
+
+
+def _initial_audio_status(cfg: AudioDictateConfig) -> PipelineStatusEvent:
+    return PipelineStatusEvent(
+        pipeline="audio",
+        mode="idle",
+        hotkey_binding=cfg.hotkey.binding,
+        force_paste_binding=cfg.force_paste_binding,
+        ollama_ok=None,
+        ollama_model=cfg.cleanup.model,
+        cuda_status=_cuda_status(cfg.asr.device),
+        created_at_ns=time.monotonic_ns(),
+    )
+
+
+def _print_audio_event(ev: UtteranceProcessed) -> None:
+    line = (
+        f"[{ev.decision.upper()}] id={ev.utterance_id} "
+        f"text={ev.text_final!r} conf={ev.confidence:.2f} "
+        f"dur_ms={ev.duration_ms:.0f} total_ms={ev.latencies['total_ms']:.0f}"
+    )
+    if ev.error:
+        line += f" error={ev.error}"
+    print(line)
+
+
+def _cuda_status(device: Any) -> str:
+    try:
+        import torch
+
+        available = bool(torch.cuda.is_available())
+    except Exception:
+        available = False
+    selected = str(device or "auto")
+    return f"{selected} ({'available' if available else 'unavailable'})"
 
 
 __all__ = [

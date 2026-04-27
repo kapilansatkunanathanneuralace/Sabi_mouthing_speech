@@ -1,0 +1,22 @@
+# Audio-visual fusion defaults (TICKET-016).
+#
+# Loaded by sabi.fusion.load_fusion_config(). These are pure combiner
+# rules: no capture, models, cleanup, paste, or hardware access happens here.
+
+[fusion]
+# auto | audio_primary | vsr_primary
+mode = "auto"
+
+# Match live paste floors from the existing pipelines.
+asr_confidence_floor = 0.4
+vsr_confidence_floor = 0.35
+
+# In auto mode, switch globally toward VSR if too many ASR words are weak.
+auto_switch_low_conf_ratio = 0.5
+
+# Per-word confidence ties below this delta use the configured tiebreaker.
+tie_epsilon = 0.02
+tie_breaker = "asr"
+
+# Avoid stitched "Frankenstein" output when transcripts barely align.
+min_alignment_ratio = 0.5

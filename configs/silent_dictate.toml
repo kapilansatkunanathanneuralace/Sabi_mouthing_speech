@@ -32,6 +32,8 @@ precision = "fp32"
 # a different host / model here if you run cleanup on a separate box.
 base_url = "http://127.0.0.1:11434"
 model = "llama3.2:3b-instruct-q4_K_M"
+# TICKET-018: keep v1 default until v2 clears eval promotion.
+prompt_version = "v1"
 
 [inject]
 # Paste tuning (TICKET-009). Slack needs >=15 ms paste_delay_ms.

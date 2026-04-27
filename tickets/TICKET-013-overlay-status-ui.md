@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: UX
 Estimate: M
 Depends on: TICKET-011, TICKET-012
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -41,13 +41,13 @@ Stretch only (add to `pyproject.toml` only if the stretch path is pursued; other
 
 ## Acceptance criteria
 
-- [ ] `python -m sabi silent-dictate --ui tui` (and the audio variant) renders the TUI and updates on every pipeline event.
-- [ ] Pressing the hotkey visibly changes the header mode indicator within 50 ms of the trigger event.
-- [ ] With Ollama stopped, the header shows a red `Ollama: offline (raw output)` message; with Ollama running it shows `Ollama: ok` and the current model.
-- [ ] Utterances below the confidence floor are styled pending and show the "F12 to paste" hint.
-- [ ] Rolling p50 / p95 footer values match the values written to `reports/latency-log.md` for the same session.
-- [ ] `--ui none` runs both pipelines with no TUI output beyond normal log lines (used by TICKET-014).
-- [ ] Unit tests render the TUI with stub events and assert the expected text is present.
+- [x] `python -m sabi silent-dictate --ui tui` (and the audio variant) renders the TUI and updates on every pipeline event.
+- [x] Pressing the hotkey visibly changes the header mode indicator within 50 ms of the trigger event.
+- [x] With Ollama stopped, the header shows a red `Ollama: offline (raw output)` message; with Ollama running it shows `Ollama: ok` and the current model.
+- [x] Utterances below the confidence floor are styled pending and show the "F12 to paste" hint.
+- [x] Rolling p50 / p95 footer values match the values written to `reports/latency-log.md` for the same session.
+- [x] `--ui none` runs both pipelines with no TUI output beyond normal log lines (used by TICKET-014).
+- [x] Unit tests render the TUI with stub events and assert the expected text is present.
 
 ## Out of scope
 

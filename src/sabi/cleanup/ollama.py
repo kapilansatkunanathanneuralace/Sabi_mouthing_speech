@@ -19,21 +19,24 @@ import json
 import logging
 import time
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 import httpx
 from pydantic import BaseModel, Field
 
+from sabi.cleanup.prompts import load_prompt
+
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "cleanup.toml"
-DEFAULT_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "default.txt"
+DEFAULT_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "v1_dictation.txt"
 
-Source = Literal["asr", "vsr"]
+Source = Literal["asr", "vsr", "fused"]
 RegisterHint = Literal["dictation", "meeting", "chat"]
+PromptVersion = Literal["v1", "v2"]
 
 
 class CleanupConfig(BaseModel):
@@ -49,7 +52,8 @@ class CleanupConfig(BaseModel):
     bypass_on_error: bool = True
     max_growth_factor: float = Field(default=3.0, gt=0.0)
     max_growth_floor: int = Field(default=16, ge=0)
-    prompt_path: Path = Field(default_factory=lambda: DEFAULT_PROMPT_PATH)
+    prompt_version: PromptVersion = "v1"
+    prompt_path: Path | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -105,6 +109,11 @@ def load_cleanup_config(path: Path | None = None) -> CleanupConfig:
     ):
         if key in limits:
             merged[key] = limits[key]
+    prompt = data.get("prompt", {}) or {}
+    if "prompt_version" in prompt:
+        merged["prompt_version"] = prompt["prompt_version"]
+    if "prompt_path" in prompt:
+        merged["prompt_path"] = Path(str(prompt["prompt_path"]))
     return CleanupConfig(**merged)
 
 
@@ -138,7 +147,9 @@ class TextCleaner:
         client: httpx.Client | None = None,
     ) -> None:
         self._config = config or CleanupConfig()
-        self._system_prompt = _load_prompt(self._config.prompt_path)
+        self._system_prompt_cache: dict[str, str] = {}
+        if self._config.prompt_path is not None:
+            self._system_prompt_cache["dictation"] = _load_prompt(self._config.prompt_path)
 
         if client is not None:
             self._client = client
@@ -215,7 +226,7 @@ class TextCleaner:
             "model": self._config.model,
             "stream": False,
             "messages": [
-                {"role": "system", "content": self._system_prompt},
+                {"role": "system", "content": self._system_prompt(ctx.register_hint)},
                 {
                     "role": "user",
                     "content": self._build_user_message(raw_text, ctx),
@@ -271,6 +282,14 @@ class TextCleaner:
             edits=None,
             reason=None,
         )
+
+    def _system_prompt(self, register: str) -> str:
+        """Resolve the configured prompt for the requested cleanup register."""
+
+        key = register.strip().lower()
+        if key not in self._system_prompt_cache:
+            self._system_prompt_cache[key] = load_prompt(self._config.prompt_version, key)
+        return self._system_prompt_cache[key]
 
     def _fallback(
         self,
@@ -340,4 +359,5 @@ __all__ = [
     "load_cleanup_config",
     "DEFAULT_CONFIG_PATH",
     "DEFAULT_PROMPT_PATH",
+    "PromptVersion",
 ]

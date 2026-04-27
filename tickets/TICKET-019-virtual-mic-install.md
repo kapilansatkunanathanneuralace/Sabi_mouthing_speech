@@ -1,4 +1,4 @@
-# TICKET-016 - Virtual mic install integration (VB-Cable)
+# TICKET-019 - Virtual mic install integration (VB-Cable)
 
 Phase: 1 - ML PoC
 Epic: Infra
@@ -37,9 +37,9 @@ No additions.
   - Enumerates `sounddevice.query_devices()`.
   - Looks for both `CABLE Input (VB-Audio Virtual Cable)` (output side) and `CABLE Output (VB-Audio Virtual Cable)` (input side) by substring.
   - Reports `PASS` / `MISSING` and the resolved device indices.
-  - Absence is a **WARNING**, not a failure, because dictation-only users do not need VB-Cable. The meeting pipeline (TICKET-022) raises a hard error at startup if it cannot find the device; the probe only surfaces the state.
-- Store resolved device names in `configs/virtual_mic.toml` so TICKET-018 has a single source of truth. Ship defaults plus a commented override block for users who rename the device.
-- Add a thin helper `sabi.output.virtual_mic.resolve_devices() -> VBCableDevices` that reads the config, calls `sounddevice.query_devices()`, and raises `VirtualMicNotInstalledError` with remediation text. TICKET-018 reuses this.
+  - Absence is a **WARNING**, not a failure, because dictation-only users do not need VB-Cable. The meeting pipeline (TICKET-025) raises a hard error at startup if it cannot find the device; the probe only surfaces the state.
+- Store resolved device names in `configs/virtual_mic.toml` so TICKET-021 has a single source of truth. Ship defaults plus a commented override block for users who rename the device.
+- Add a thin helper `sabi.output.virtual_mic.resolve_devices() -> VBCableDevices` that reads the config, calls `sounddevice.query_devices()`, and raises `VirtualMicNotInstalledError` with remediation text. TICKET-021 reuses this.
 - Add `tests/test_virtual_mic_probe.py` that monkeypatches `sounddevice.query_devices()` with a fake device list containing and not containing VB-Cable to verify both branches of the detection.
 
 ## Acceptance criteria
@@ -59,7 +59,7 @@ No additions.
 
 ## Notes
 
-- Name matching is substring-based because vendor updates sometimes append `(2)` or a version qualifier. Document the exact match rules so TICKET-018 can rely on them.
+- Name matching is substring-based because vendor updates sometimes append `(2)` or a version qualifier. Document the exact match rules so TICKET-021 can rely on them.
 - Keep the device index cache short-lived. Windows can renumber devices after sleep/wake or after a USB audio device is plugged in; resolve on pipeline start, not once at import time.
 
 ## References

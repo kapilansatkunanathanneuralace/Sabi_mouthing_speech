@@ -1,14 +1,14 @@
-# TICKET-022 - Silent-meeting pipeline (PoC-3)
+# TICKET-025 - Silent-meeting pipeline (PoC-4)
 
 Phase: 1 - ML PoC
 Epic: Pipeline
 Estimate: L
-Depends on: TICKET-005, TICKET-018, TICKET-019, TICKET-021
+Depends on: TICKET-005, TICKET-021, TICKET-022, TICKET-024
 Status: Not started
 
 ## Goal
 
-Wire TICKET-003 (webcam) + TICKET-004 (lip ROI) + TICKET-005 (Chaplin VSR) + TICKET-019 (meeting-register cleanup) + TICKET-017 (Kokoro TTS) + TICKET-018 (virtual mic sink) into a silent-meeting pipeline driven by the orchestrator from TICKET-021. Exposes `python -m sabi silent-meeting`. Users mouth words at the camera; Zoom / Teams / Meet, with mic set to `CABLE Output`, hears a synthesized voice speaking those words - roadmap Flow 2 end-to-end.
+Wire TICKET-003 (webcam) + TICKET-004 (lip ROI) + TICKET-005 (Chaplin VSR) + TICKET-022 (meeting-register cleanup) + TICKET-020 (Kokoro TTS) + TICKET-021 (virtual mic sink) into a silent-meeting pipeline driven by the orchestrator from TICKET-024. Exposes `python -m sabi silent-meeting`. Users mouth words at the camera; Zoom / Teams / Meet, with mic set to `CABLE Output`, hears a synthesized voice speaking those words - roadmap Flow 2 end-to-end.
 
 ## System dependencies
 
@@ -43,12 +43,12 @@ No new dependencies; everything pinned already.
 
 - [ ] `python -m sabi silent-meeting` registers the meeting pipeline with the orchestrator and idles until triggered.
 - [ ] Mouthing a short phrase during a Zoom call (with Zoom's mic set to `CABLE Output`) produces synthesized speech audible to the other participant. Target end-to-end latency < 650 ms on the reference GPU laptop (looser than the 400-500 ms roadmap budget because Chaplin is a validator; the per-stage log lets us see which stage is over budget).
-- [ ] With VB-Cable missing, pipeline fails at startup with the remediation error from TICKET-016.
+- [ ] With VB-Cable missing, pipeline fails at startup with the remediation error from TICKET-019.
 - [ ] With Ollama off, cleanup bypasses and raw Chaplin text is synthesized.
 - [ ] With the face occluded, the utterance aborts quietly and nothing is synthesized.
 - [ ] Low-confidence utterances stay silent by default; F12 during the trigger window forces synthesis.
 - [ ] `reports/silent_meeting_<date>.jsonl` records one JSON object per attempted utterance with the full `latencies` dict.
-- [ ] Latency rows appended to `reports/latency-log.md` with `ticket=TICKET-022` for every smoke run.
+- [ ] Latency rows appended to `reports/latency-log.md` with `ticket=TICKET-025` for every smoke run.
 - [ ] Unit tests pass with all hardware mocked out.
 
 ## Out of scope
@@ -57,7 +57,8 @@ No new dependencies; everything pinned already.
 - Two-way turn-taking / barge-in - the PoC is one-way output.
 - Echo / feedback cancellation - users can hear the synthesized voice via Zoom's "Test Speaker and Microphone" in preview; real meetings are fine because the speaker output is a different device from the CABLE Output input.
 - Lip-sync to the user's actual face on camera - the user may leave their camera off in the meeting entirely; if they do not, sync is the meeting participants' problem to perceive, not ours to compensate.
-- Auto-mode-switch inside the pipeline - handled centrally by TICKET-021.
+- Auto-mode-switch inside the pipeline - handled centrally by TICKET-024.
+- Audio-visual fusion in the meeting flow (using mic + camera together) - TICKET-016 / TICKET-017 own the fusion stack for dictation; layering fusion into meeting mode is a follow-up after this ticket and the fused-dictation pipeline are both in production.
 
 ## Notes
 

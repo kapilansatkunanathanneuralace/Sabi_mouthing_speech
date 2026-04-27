@@ -56,6 +56,11 @@ dev = [
     # Optional WER gate for `sabi vsr-smoke` (TICKET-005); safe to omit in minimal installs.
     "jiwer>=3.0",
 ]
+eval = [
+    "jiwer>=3.0",
+    "pandas>=2.2.2",
+    "tabulate>=0.9.0",
+]
 
 [project.scripts]
 sabi = "sabi.cli:main"

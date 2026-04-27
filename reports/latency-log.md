@@ -35,3 +35,42 @@ Append one row per pipeline run (see tickets/README.md).
 | TICKET-008 | fallback | cleanup | 805.9 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=True reason=http_error: ReadTimeout |
 | TICKET-008 | ollama | cleanup | 3089.9 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=False |
 | TICKET-008 | ollama | cleanup | 160.9 | - | 48 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v2 source=asr fallback=False |
+| TICKET-017 | windows | pipeline | 10166.1 | - | 1 | decision=dry_run confidence=0.96 fusion=auto -> audio_primary prompt=v1 fallback=False [cap=1035 roi=348 vsr=1725 asr=112 fusion=0.0 clean=233 inject=0] |
+| TICKET-017 | windows | pipeline | 2874.9 | - | 1 | decision=error confidence=0.00 fusion=- prompt=v1 fallback=False [cap=210 roi=61 vsr=0 asr=0 fusion=0.0 clean=0 inject=0] error=neither modality captured input |
+| TICKET-017 | windows | pipeline | 4179.6 | - | 1 | decision=dry_run confidence=0.96 fusion=auto -> audio_primary prompt=v1 fallback=False [cap=1137 roi=288 vsr=836 asr=194 fusion=0.0 clean=170 inject=0] |
+| TICKET-017 | windows | pipeline | 5353.9 | - | 1 | decision=dry_run confidence=1.00 fusion=alignment_below_threshold prompt=v1 fallback=False [cap=2210 roi=559 vsr=1002 asr=255 fusion=0.0 clean=147 inject=0] |
+| TICKET-017 | windows | pipeline | 5734.7 | - | 1 | decision=dry_run confidence=1.00 fusion=asr silent prompt=v1 fallback=False [cap=2580 roi=645 vsr=896 asr=0 fusion=0.0 clean=179 inject=0] |
+| TICKET-017 | windows | pipeline | 5240.9 | - | 1 | decision=dry_run confidence=1.00 fusion=asr silent prompt=v1 fallback=False [cap=2273 roi=583 vsr=729 asr=0 fusion=0.0 clean=158 inject=0] |
+| TICKET-014 | windows | fused:asr_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=asr_ms |
+| TICKET-014 | windows | fused:capture_ms | 998.9 | 998.9 | 1 | pipeline=fused stage=capture_ms |
+| TICKET-014 | windows | fused:capture_open_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=capture_open_ms |
+| TICKET-014 | windows | fused:cleanup_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=cleanup_ms |
+| TICKET-014 | windows | fused:fusion_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=fusion_ms |
+| TICKET-014 | windows | fused:inject_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=inject_ms |
+| TICKET-014 | windows | fused:mic_open_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=mic_open_ms |
+| TICKET-014 | windows | fused:roi_ms | 91.3 | 91.3 | 1 | pipeline=fused stage=roi_ms |
+| TICKET-014 | windows | fused:total_ms | 294.6 | 294.6 | 1 | pipeline=fused stage=total_ms |
+| TICKET-014 | windows | fused:vsr_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=vsr_ms |
+| TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 1 | pipeline=fused stage=warmup_ms |
+| TICKET-014 | windows | fused:asr_ms | 125.2 | 139.3 | 20 | pipeline=fused stage=asr_ms |
+| TICKET-014 | windows | fused:capture_ms | 3999.4 | 3999.4 | 20 | pipeline=fused stage=capture_ms |
+| TICKET-014 | windows | fused:capture_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=capture_open_ms |
+| TICKET-014 | windows | fused:cleanup_ms | 809.0 | 815.4 | 20 | pipeline=fused stage=cleanup_ms |
+| TICKET-014 | windows | fused:fusion_ms | 0.0 | 0.1 | 20 | pipeline=fused stage=fusion_ms |
+| TICKET-014 | windows | fused:inject_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=inject_ms |
+| TICKET-014 | windows | fused:mic_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=mic_open_ms |
+| TICKET-014 | windows | fused:roi_ms | 1001.9 | 1049.5 | 20 | pipeline=fused stage=roi_ms |
+| TICKET-014 | windows | fused:total_ms | 6001.4 | 6726.9 | 20 | pipeline=fused stage=total_ms |
+| TICKET-014 | windows | fused:vsr_ms | 1245.1 | 1536.9 | 20 | pipeline=fused stage=vsr_ms |
+| TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=warmup_ms |
+| TICKET-014 | windows | fused:asr_ms | 304.2 | 324.9 | 20 | pipeline=fused stage=asr_ms |
+| TICKET-014 | windows | fused:capture_ms | 3999.4 | 3999.4 | 20 | pipeline=fused stage=capture_ms |
+| TICKET-014 | windows | fused:capture_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=capture_open_ms |
+| TICKET-014 | windows | fused:cleanup_ms | 804.6 | 814.4 | 20 | pipeline=fused stage=cleanup_ms |
+| TICKET-014 | windows | fused:fusion_ms | 0.1 | 0.1 | 20 | pipeline=fused stage=fusion_ms |
+| TICKET-014 | windows | fused:inject_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=inject_ms |
+| TICKET-014 | windows | fused:mic_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=mic_open_ms |
+| TICKET-014 | windows | fused:roi_ms | 2069.2 | 2197.6 | 20 | pipeline=fused stage=roi_ms |
+| TICKET-014 | windows | fused:total_ms | 12018.0 | 14463.0 | 20 | pipeline=fused stage=total_ms |
+| TICKET-014 | windows | fused:vsr_ms | 3843.7 | 4872.5 | 20 | pipeline=fused stage=vsr_ms |
+| TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=warmup_ms |

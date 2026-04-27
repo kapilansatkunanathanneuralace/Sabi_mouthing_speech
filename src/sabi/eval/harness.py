@@ -655,6 +655,9 @@ class FusedOfflineRunner:
                 "source_weights": fused.source_weights,
                 "per_word_origin": fused.per_word_origin,
                 "confidence": fused.confidence,
+                "cleanup_prompt_version": self.config.cleanup.prompt_version,
+                "cleanup_used_fallback": cleaned.used_fallback,
+                "cleanup_reason": cleaned.reason,
             },
             asr={
                 "text": "" if asr_result is None else asr_result.text,
@@ -901,6 +904,7 @@ def render_report(
         "",
         _phrase_table(records),
         "",
+        *(_fused_diagnostics_section(records) if _has_fused_records(records) else []),
         "## Known Failure Modes",
         "",
         _failure_section(records),
@@ -1059,6 +1063,141 @@ def _prompt_comparison_section(records: list[EvalRecord]) -> list[str]:
     return ["## Prompt Comparison", "", verdict, ""]
 
 
+def _has_fused_records(records: Iterable[EvalRecord]) -> bool:
+    return any(rec.pipeline == "fused" for rec in records)
+
+
+def _fused_diagnostics_section(records: list[EvalRecord]) -> list[str]:
+    rows = []
+    for rec in records:
+        if rec.pipeline != "fused":
+            continue
+        event = rec.event
+        fusion = _diagnostic_block(getattr(event, "fusion", {}))
+        asr = _diagnostic_block(getattr(event, "asr", {}))
+        vsr = _diagnostic_block(getattr(event, "vsr", {}))
+        rows.append(
+            [
+                rec.phrase.id,
+                rec.prompt_version,
+                str(rec.run_index),
+                _cell(str(asr.get("text", ""))),
+                _format_float(asr.get("confidence"), precision=2),
+                _cell(str(vsr.get("text", ""))),
+                _format_float(vsr.get("confidence"), precision=2),
+                _cell(str(fusion.get("mode_used", ""))),
+                _cell(str(fusion.get("mode_reason", ""))),
+                _format_source_weights(fusion.get("source_weights")),
+                _format_word_origins(fusion.get("per_word_origin")),
+                _format_float(getattr(event, "face_present_ratio", None), precision=2),
+                _format_float(getattr(event, "vad_coverage", None), precision=2),
+                _format_dbfs(getattr(event, "peak_dbfs", None)),
+                _cell(str(fusion.get("cleanup_prompt_version") or rec.prompt_version)),
+                _format_bool(fusion.get("cleanup_used_fallback", event.used_fallback)),
+                _cell(str(fusion.get("cleanup_reason") or "")),
+                _format_flags(_fused_flags(rec, asr, vsr)),
+            ]
+        )
+    return [
+        "## Fused Diagnostics",
+        "",
+        _markdown_table(
+            [
+                "id",
+                "prompt",
+                "run",
+                "asr_text",
+                "asr_confidence",
+                "vsr_text",
+                "vsr_confidence",
+                "fusion_mode",
+                "fusion_reason",
+                "source_weights",
+                "per_word_origin",
+                "face_ratio",
+                "vad_coverage",
+                "peak_dbfs",
+                "cleanup_prompt",
+                "cleanup_fallback",
+                "cleanup_reason",
+                "flags",
+            ],
+            rows,
+        ),
+        "",
+    ]
+
+
+def _diagnostic_block(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _format_float(value: object, *, precision: int) -> str:
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "-"
+    if not math.isfinite(number):
+        return "-"
+    return f"{number:.{precision}f}"
+
+
+def _format_dbfs(value: object) -> str:
+    formatted = _format_float(value, precision=1)
+    return "-" if formatted == "-" else formatted
+
+
+def _format_bool(value: object) -> str:
+    return "yes" if bool(value) else "no"
+
+
+def _format_source_weights(value: object) -> str:
+    if not isinstance(value, dict):
+        return "-"
+    asr = _format_float(value.get("asr"), precision=2)
+    vsr = _format_float(value.get("vsr"), precision=2)
+    return f"asr={asr} vsr={vsr}"
+
+
+def _format_word_origins(value: object, *, limit: int = 12) -> str:
+    if not isinstance(value, list) or not value:
+        return "-"
+    origins = [str(item) for item in value]
+    shown = origins[:limit]
+    suffix = f" ...(+{len(origins) - limit})" if len(origins) > limit else ""
+    return " ".join(shown) + suffix
+
+
+def _format_flags(flags: list[str]) -> str:
+    return ", ".join(flags) if flags else "-"
+
+
+def _fused_flags(rec: EvalRecord, asr: dict[str, Any], vsr: dict[str, Any]) -> list[str]:
+    event = rec.event
+    flags: list[str] = []
+    if event.confidence >= 0.95 and rec.cleaned_wer >= 0.5:
+        flags.append("high_conf_high_wer")
+    if _asr_vsr_disagree(asr, vsr):
+        flags.append("asr_vsr_disagree")
+    if event.used_fallback:
+        flags.append("cleanup_fallback")
+    if getattr(event, "face_present_ratio", 1.0) < 0.6:
+        flags.append("low_face_ratio")
+    if getattr(event, "vad_coverage", 1.0) < 0.5:
+        flags.append("low_vad_coverage")
+    if getattr(event, "peak_dbfs", 0.0) < -35.0:
+        flags.append("low_audio_peak")
+    return flags
+
+
+def _asr_vsr_disagree(asr: dict[str, Any], vsr: dict[str, Any]) -> bool:
+    asr_text = str(asr.get("text") or "").strip()
+    vsr_text = str(vsr.get("text") or "").strip()
+    if not asr_text or not vsr_text:
+        return False
+    return compute_wer(asr_text, vsr_text) >= 0.5
+
+
 def _failure_section(records: list[EvalRecord]) -> str:
     failures = []
     for rec in records:
@@ -1068,10 +1207,27 @@ def _failure_section(records: list[EvalRecord]) -> str:
             or event.decision not in {"dry_run", "pasted"}
             or event.used_fallback
             or event.confidence < 0.4
+            or (
+                rec.pipeline == "fused"
+                and event.confidence >= 0.95
+                and rec.cleaned_wer >= 0.5
+            )
         ):
             reason = event.error or event.decision
+            if (
+                rec.pipeline == "fused"
+                and event.confidence >= 0.95
+                and rec.cleaned_wer >= 0.5
+            ):
+                reason += " high_conf_high_wer"
             if event.used_fallback:
-                reason += " cleanup: bypassed"
+                fallback_reason = _diagnostic_block(
+                    getattr(event, "fusion", {})
+                ).get("cleanup_reason")
+                if fallback_reason:
+                    reason += f" cleanup: {fallback_reason}"
+                else:
+                    reason += " cleanup: fallback"
             failures.append(f"- {rec.phrase.id} / {rec.pipeline} / run {rec.run_index}: {reason}")
     if not failures:
         return "- None observed."

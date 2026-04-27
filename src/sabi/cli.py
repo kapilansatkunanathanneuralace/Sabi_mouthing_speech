@@ -977,6 +977,226 @@ def fused_dictate_cmd(
     raise typer.Exit(run_fused_dictate(cfg, ui=ui_mode))
 
 
+@app.command("collect-fused-eval")
+def collect_fused_eval_cmd(
+    out_dir: Path = typer.Option(
+        Path("data/eval/fused"),
+        "--out-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Dataset output directory. Writes phrases.jsonl plus video/ and audio/.",
+    ),
+    phrases: Path = typer.Option(
+        Path("data/eval/phrases.sample.jsonl"),
+        "--phrases",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Source phrases JSONL/JSON file, or a dataset directory containing phrases.jsonl.",
+    ),
+    limit: int = typer.Option(
+        0,
+        "--limit",
+        min=0,
+        help="Maximum number of phrases to collect. 0 = no limit.",
+    ),
+    start_at: str = typer.Option(
+        "",
+        "--start-at",
+        help="Start at a phrase id or 1-based phrase index.",
+    ),
+    phrase_id: list[str] | None = typer.Option(
+        None,
+        "--phrase-id",
+        help="Collect only this phrase id. May be passed multiple times.",
+    ),
+    retry: str = typer.Option(
+        "",
+        "--retry",
+        help="Re-record one phrase id and update its existing output row.",
+    ),
+    skip_existing: bool = typer.Option(
+        False,
+        "--skip-existing",
+        help="Validate and keep existing media instead of recording over it.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Overwrite existing media for selected phrases.",
+    ),
+    duration_s: float = typer.Option(
+        4.0,
+        "--duration-s",
+        min=0.1,
+        help="Seconds to record per phrase.",
+    ),
+    camera_name: str = typer.Option(
+        "",
+        "--camera-name",
+        help="ffmpeg dshow camera name. List with: ffmpeg -list_devices true -f dshow -i dummy",
+    ),
+    mic_name: str = typer.Option(
+        "",
+        "--mic-name",
+        help="ffmpeg dshow microphone name.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show planned paths without touching camera, microphone, media, or JSONL.",
+    ),
+) -> None:
+    """Collect paired MP4/WAV media for fused offline eval (TICKET-019)."""
+
+    from sabi.eval.collect_fused import FusedEvalCollectionConfig, collect_fused_eval
+
+    config = FusedEvalCollectionConfig(
+        out_dir=out_dir,
+        phrases_path=phrases,
+        limit=None if limit == 0 else limit,
+        start_at=start_at or None,
+        phrase_ids=tuple(phrase_id or ()),
+        retry_phrase_id=retry or None,
+        skip_existing=skip_existing,
+        overwrite=overwrite,
+        duration_s=duration_s,
+        camera_name=camera_name or None,
+        mic_name=mic_name or None,
+        dry_run=dry_run,
+    )
+
+    def _before_record(phrase, index: int, total: int) -> None:  # noqa: ANN001
+        typer.echo("")
+        typer.echo(f"[{index}/{total}] {phrase.id}: {phrase.text}")
+        typer.echo(f"Recording in 3 seconds for {duration_s:.1f} seconds...")
+        for remaining in range(3, 0, -1):
+            typer.echo(f"  {remaining}...")
+            time.sleep(1.0)
+
+    try:
+        result = collect_fused_eval(config, before_record=None if dry_run else _before_record)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"phrases : {result.phrases_path}")
+    typer.echo(
+        "summary : "
+        f"recorded={result.recorded} skipped={result.skipped} "
+        f"planned={result.planned} failed={result.failed}"
+    )
+    for take in result.takes:
+        suffix = f" error={take.error}" if take.error else ""
+        typer.echo(
+            f"{take.status:8} {take.phrase.id} "
+            f"video={take.video_rel} audio={take.audio_rel}{suffix}"
+        )
+    if result.failed:
+        raise typer.Exit(1)
+
+
+@app.command("fused-eval-check")
+def fused_eval_check_cmd(
+    dataset: Path = typer.Option(
+        Path("data/eval/fused"),
+        "--dataset",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Fused eval dataset directory or phrases.jsonl file to validate.",
+    ),
+) -> None:
+    """Validate a fused eval dataset before running model eval (TICKET-020)."""
+
+    from sabi.eval.fused_dataset import validate_fused_dataset
+
+    summary = validate_fused_dataset(dataset)
+    typer.echo(f"dataset       : {summary.dataset_path}")
+    typer.echo(f"phrases       : {summary.phrase_count}")
+    typer.echo(f"valid         : {summary.valid_count}")
+    typer.echo(f"missing video : {summary.missing_video_count}")
+    typer.echo(f"missing audio : {summary.missing_audio_count}")
+    typer.echo(f"invalid video : {summary.invalid_video_count}")
+    typer.echo(f"invalid audio : {summary.invalid_audio_count}")
+
+    if summary.issues:
+        typer.echo("")
+        typer.echo("Issues:")
+        for issue in summary.issues:
+            typer.echo(f"- {issue.phrase_id} {issue.field}: {issue.message}")
+        raise typer.Exit(1)
+
+    typer.echo("")
+    typer.echo("Dataset is ready for fused eval.")
+    typer.echo("Run:")
+    typer.echo(f"  {summary.recommended_eval_command}")
+
+
+@app.command("fused-eval-reset")
+def fused_eval_reset_cmd(
+    dataset: Path = typer.Option(
+        Path("data/eval/fused"),
+        "--dataset",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Fused eval dataset directory to reset.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Actually delete generated phrases.jsonl plus video/audio media.",
+    ),
+) -> None:
+    """Reset generated fused eval media so collection can start over."""
+
+    from sabi.eval.collect_fused import reset_fused_eval_dataset
+
+    result = reset_fused_eval_dataset(dataset, dry_run=not yes)
+    mode = "would delete" if result.dry_run else "deleted"
+    typer.echo(f"dataset : {result.out_dir}")
+    typer.echo(f"{mode}: {len(result.files)} file(s)")
+    for path in result.files:
+        typer.echo(f"- {path}")
+    if result.dry_run:
+        typer.echo("")
+        typer.echo("Preview only. Re-run with --yes to delete these files.")
+
+
+@app.command("fused-tuning-suggest")
+def fused_tuning_suggest_cmd(
+    report: Path = typer.Option(
+        Path("reports/poc-eval-fused-personal.md"),
+        "--report",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="TICKET-030 fused eval markdown report to analyze.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        file_okay=True,
+        dir_okay=False,
+        writable=True,
+        help="Optional markdown output path for suggestions.",
+    ),
+) -> None:
+    """Suggest manual fused tuning actions from a diagnostics report."""
+
+    from sabi.eval.fused_tuning import analyze_fused_tuning_report, write_suggestions_markdown
+
+    analysis = analyze_fused_tuning_report(report)
+    typer.echo(analysis.to_markdown())
+    if out is not None:
+        write_suggestions_markdown(analysis, out)
+        typer.echo(f"Wrote fused tuning suggestions: {out}")
+
+
 @app.command("eval")
 def eval_cmd(
     dataset: Path = typer.Option(

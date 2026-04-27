@@ -76,6 +76,29 @@ class FakeASR:
         )
 
 
+class BadFakeVSR:
+    def predict(self, frames: list[LipFrame]) -> VSRResult:
+        assert frames
+        return VSRResult(
+            text="visual wrong",
+            confidence=0.99,
+            per_token_scores=None,
+            latency_ms=12.0,
+        )
+
+
+class BadFakeASR:
+    def transcribe(self, _utt: Any) -> ASRResult:
+        return ASRResult(
+            text="audio wrong",
+            segments=[],
+            confidence=0.99,
+            latency_ms=22.0,
+            language="en",
+            device="cpu",
+        )
+
+
 class FakeCleaner:
     def __init__(self, *, fallback: bool = False) -> None:
         self.fallback = fallback
@@ -239,7 +262,7 @@ def test_cleanup_fallback_keeps_raw_and_cleaned_wer_equal(tmp_path: Path) -> Non
     report = result.report_path.read_text(encoding="utf-8")
     assert rec.event.used_fallback is True
     assert rec.raw_wer == pytest.approx(rec.cleaned_wer)
-    assert "cleanup: bypassed" in report
+    assert "cleanup: fallback" in report
 
 
 def test_run_eval_supports_fused_pipeline(tmp_path: Path) -> None:
@@ -271,7 +294,80 @@ def test_run_eval_supports_fused_pipeline(tmp_path: Path) -> None:
     assert result.records[0].event.pipeline == "fused"
     report = result.report_path.read_text(encoding="utf-8")
     assert "| fused |" in report
+    assert "## Fused Diagnostics" in report
+    assert "asr_confidence" in report
+    assert "vsr_confidence" in report
+    assert "fusion_reason" in report
+    assert "source_weights" in report
+    assert "per_word_origin" in report
+    assert "face_ratio" in report
+    assert "vad_coverage" in report
+    assert "peak_dbfs" in report
+    assert "cleanup_prompt" in report
+    assert "cleanup_fallback" in report
+    assert "auto -> audio_primary" in report
+    assert "asr=0.50 vsr=0.50" in report
+    assert "both both" in report
     assert "pipeline=fused" in latency_log.read_text(encoding="utf-8")
+
+
+def test_run_eval_flags_fused_high_confidence_failures(tmp_path: Path) -> None:
+    _phrases_path, _video, _audio = _write_dataset(tmp_path / "dataset", text="hello world")
+    video_frames = [(0, np.zeros((32, 32, 3), dtype=np.uint8))]
+    fused = FusedOfflineRunner(
+        lip_roi_factory=lambda _cfg: _Ctx(FakeROI()),
+        vsr_factory=lambda _cfg: _Ctx(BadFakeVSR()),
+        asr_factory=lambda _cfg: _Ctx(BadFakeASR()),
+        cleaner_factory=lambda _cfg: _Ctx(FakeCleaner(fallback=True)),
+        video_loader=lambda _path: video_frames,
+    )
+
+    result = run_eval(
+        EvalConfig(
+            dataset_path=tmp_path / "dataset",
+            runs=1,
+            warmups=0,
+            pipeline="fused",
+            out_path=tmp_path / "report.md",
+            latency_log_path=tmp_path / "latency-log.md",
+        ),
+        fused_runner=fused,
+    )
+
+    report = result.report_path.read_text(encoding="utf-8")
+    assert "high_conf_high_wer" in report
+    assert "asr_vsr_disagree" in report
+    assert "cleanup_fallback" in report
+    assert "ollama_unavailable" in report
+
+
+def test_run_eval_reports_fused_cleanup_fallback_reason(tmp_path: Path) -> None:
+    _phrases_path, _video, _audio = _write_dataset(tmp_path / "dataset")
+    video_frames = [(0, np.zeros((32, 32, 3), dtype=np.uint8))]
+    fused = FusedOfflineRunner(
+        lip_roi_factory=lambda _cfg: _Ctx(FakeROI()),
+        vsr_factory=lambda _cfg: _Ctx(FakeVSR()),
+        asr_factory=lambda _cfg: _Ctx(FakeASR()),
+        cleaner_factory=lambda _cfg: _Ctx(FakeCleaner(fallback=True)),
+        video_loader=lambda _path: video_frames,
+    )
+
+    result = run_eval(
+        EvalConfig(
+            dataset_path=tmp_path / "dataset",
+            runs=1,
+            warmups=0,
+            pipeline="fused",
+            out_path=tmp_path / "report.md",
+            latency_log_path=tmp_path / "latency-log.md",
+        ),
+        fused_runner=fused,
+    )
+
+    report = result.report_path.read_text(encoding="utf-8")
+    assert "| v1 |" in report
+    assert "| yes | ollama_unavailable |" in report
+    assert "cleanup: ollama_unavailable" in report
 
 
 def test_run_eval_reports_cleanup_prompt_ab_columns(tmp_path: Path) -> None:

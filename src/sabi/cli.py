@@ -1318,5 +1318,119 @@ def eval_cmd(
     typer.echo(f"Records: {len(result.records)}")
 
 
+@app.command("eval-fusion-modes")
+def eval_fusion_modes_cmd(
+    dataset: Path = typer.Option(
+        ...,
+        "--dataset",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Dataset directory containing phrases.jsonl, or a phrases JSONL file.",
+    ),
+    modes: str = typer.Option(
+        "auto,audio_primary,vsr_primary",
+        "--modes",
+        help="Comma-separated fusion modes: auto,audio_primary,vsr_primary.",
+    ),
+    runs: int = typer.Option(1, "--runs", min=1, help="Measured runs per phrase."),
+    warmups: int = typer.Option(1, "--warmups", min=0, help="Warm-up runs per phrase."),
+    cleanup_prompt: str = typer.Option(
+        "v1",
+        "--cleanup-prompt",
+        help="Cleanup prompt versions: v1 or v1,v2.",
+    ),
+    cleanup_timeout_ms: int | None = typer.Option(
+        None,
+        "--cleanup-timeout-ms",
+        min=1,
+        help="Override cleanup timeout for eval runs, in milliseconds.",
+    ),
+    cleanup_preflight: bool = typer.Option(
+        True,
+        "--cleanup-preflight/--no-cleanup-preflight",
+        help="Probe and warm the cleanup model before the first mode sweep.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        file_okay=True,
+        dir_okay=False,
+        writable=True,
+        help="Markdown report path. Defaults to reports/fusion-mode-ab-<date>.md.",
+    ),
+) -> None:
+    """Compare fused eval across fusion modes (TICKET-037)."""
+
+    import logging
+    from datetime import datetime, timezone
+
+    from sabi.eval import MissingEvalDependencyError
+    from sabi.eval.fusion_mode_ab import (
+        FusionModeAbConfig,
+        parse_fusion_modes,
+        run_fusion_mode_ab_eval,
+    )
+    from sabi.eval.harness import require_eval_dependencies
+    from sabi.pipelines.fused_dictate import FusedDictateConfig
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    try:
+        mode_list = parse_fusion_modes(modes)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--modes") from exc
+
+    cleanup_prompts = tuple(
+        _normalize_cleanup_prompt(part, param_hint="--cleanup-prompt")
+        for part in cleanup_prompt.split(",")
+        if part.strip()
+    )
+    if not cleanup_prompts:
+        raise typer.BadParameter(
+            "--cleanup-prompt must include v1 or v2",
+            param_hint="--cleanup-prompt",
+        )
+    if len(set(cleanup_prompts)) != len(cleanup_prompts):
+        raise typer.BadParameter(
+            "--cleanup-prompt contains duplicate versions",
+            param_hint="--cleanup-prompt",
+        )
+
+    fused_base = FusedDictateConfig()
+    if cleanup_timeout_ms is not None:
+        fused_base = fused_base.model_copy(
+            update={
+                "cleanup": fused_base.cleanup.model_copy(
+                    update={"timeout_ms": cleanup_timeout_ms}
+                )
+            }
+        )
+
+    try:
+        require_eval_dependencies()
+    except MissingEvalDependencyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    out_path = out if out is not None else Path("reports") / f"fusion-mode-ab-{stamp}.md"
+
+    report_path = run_fusion_mode_ab_eval(
+        FusionModeAbConfig(
+            dataset_path=dataset,
+            modes=mode_list,
+            runs=runs,
+            warmups=warmups,
+            cleanup_prompts=cleanup_prompts,  # type: ignore[arg-type]
+            cleanup_preflight=cleanup_preflight,
+            fused_base=fused_base,
+            out_path=out_path,
+        )
+    )
+    typer.echo(f"Wrote fusion mode A/B report: {report_path}")
+
+
 def main() -> None:
     app()

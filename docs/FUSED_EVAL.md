@@ -129,6 +129,33 @@ vs `reports/poc-eval-fused-personal-calibrated.md`):
 - **Latency**: wall-clock and per-stage medians can shift between runs depending on cold/warm model caches and
   background load. Always compare using the `## Summary` and `## Per-Stage Latency` tables from the specific report file.
 
+### Fusion mode A/B (TICKET-037)
+
+Use this **after** you have a calibrated baseline (TICKET-036). It runs the same fused eval once per
+`FusionConfig.mode` and writes **one** markdown report so you can compare `auto`, `audio_primary`, and
+`vsr_primary` on **measured** WER, confidence, latency, and high-confidence/high-WER counts.
+
+```powershell
+python -m sabi eval-fusion-modes `
+  --dataset data/eval/fused `
+  --modes auto,audio_primary,vsr_primary `
+  --runs 1 `
+  --cleanup-timeout-ms 10000 `
+  --out reports/fusion-mode-ab-personal.md
+```
+
+The report includes:
+
+- **Summary by mode**: mean `raw_wer` / `cleaned_wer`, cleanup fallback rate, `high_conf_high_wer` row counts, and
+  end-to-end latency percentiles per mode.
+- **Per-stage latency by mode**: quick view of whether one mode shifts ASR/VSR/ROI time (usually similar; large
+  swings usually mean cache effects or a different failure mode).
+- **Per-phrase cleaned WER by mode**: which mode wins per phrase on `cleaned_wer`, plus spread across modes.
+- **Severe mode disagreements**: phrases where modes disagree strongly enough that changing defaults could matter.
+
+Do **not** change the live fusion default based on a single run; use this report as evidence, then let TICKET-038
+decide the policy change after you have a repeatable pattern on your dataset.
+
 ## 4. Optional Cleanup Prompt A/B
 
 To compare cleanup prompts on the same fused dataset:

@@ -40,6 +40,19 @@ def test_eval_command_advertises_eval_options() -> None:
     assert "Probe and warm" in result.output
 
 
+def test_eval_fusion_modes_advertises_options() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["eval-fusion-modes", "--help"], terminal_width=200)
+
+    assert result.exit_code == 0
+    assert "--dataset" in result.output
+    assert "--modes" in result.output
+    assert "--runs" in result.output
+    assert "--cleanup-timeout-ms" in result.output or "--cleanup-timeo" in result.output
+    assert "fusion mode" in result.output.lower()
+
+
 def test_cleanup_smoke_advertises_prompt_version() -> None:
     runner = CliRunner()
 

@@ -4,7 +4,7 @@ Phase: 2 - Fusion & polish
 Epic: Eval
 Estimate: M
 Depends on: TICKET-016, TICKET-020, TICKET-030, TICKET-036
-Status: Not started
+Status: Done
 
 ## Goal
 
@@ -29,11 +29,11 @@ None new.
 
 ## Acceptance criteria
 
-- [ ] A command can compare `auto`, `audio_primary`, and `vsr_primary` on one dataset.
-- [ ] The report shows aggregate WER and latency by mode.
-- [ ] The report identifies which mode wins per phrase or at least flags severe mode regressions.
-- [ ] Tests cover mode comparison output.
-- [ ] Docs explain how to use the A/B output before changing fusion defaults.
+- [x] A command can compare `auto`, `audio_primary`, and `vsr_primary` on one dataset.
+- [x] The report shows aggregate WER and latency by mode.
+- [x] The report identifies which mode wins per phrase or at least flags severe mode regressions.
+- [x] Tests cover mode comparison output.
+- [x] Docs explain how to use the A/B output before changing fusion defaults.
 
 ## Out of scope
 

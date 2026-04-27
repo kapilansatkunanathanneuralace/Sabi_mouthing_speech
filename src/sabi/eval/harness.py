@@ -94,6 +94,7 @@ class EvalConfig:
     silent_config: SilentDictateConfig = field(default_factory=SilentDictateConfig)
     audio_config: AudioDictateConfig = field(default_factory=AudioDictateConfig)
     fused_config: FusedDictateConfig = field(default_factory=FusedDictateConfig)
+    write_output: bool = True
 
     @property
     def selected_pipelines(self) -> tuple[PipelineName, ...]:
@@ -813,9 +814,10 @@ def run_eval(
     report_path = config.report_path
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     report = render_report(config, records, stage_stats, summary_stats, elapsed_ms=elapsed_ms)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(report, encoding="utf-8")
-    append_eval_latency_rows(config, stage_stats, records)
+    if config.write_output:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(report, encoding="utf-8")
+        append_eval_latency_rows(config, stage_stats, records)
     return EvalResult(
         config=config,
         report_path=report_path,

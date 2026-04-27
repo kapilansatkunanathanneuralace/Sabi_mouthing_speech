@@ -255,6 +255,8 @@ def test_run_eval_creates_report_and_latency_log(tmp_path: Path) -> None:
     assert "## Summary" in report
     assert "raw_wer" in report
     assert "cleaned_wer" in report
+    assert "cleanup_fallbacks" in report
+    assert "cleanup_fallback_rate" in report
     assert "## Per-Stage Latency" in report
     assert "## Phrase Results" in report
     assert "phrase001" in report
@@ -285,6 +287,9 @@ def test_cleanup_fallback_keeps_raw_and_cleaned_wer_equal(tmp_path: Path) -> Non
     report = result.report_path.read_text(encoding="utf-8")
     assert rec.event.used_fallback is True
     assert rec.raw_wer == pytest.approx(rec.cleaned_wer)
+    assert result.summary_stats["audio"]["cleanup_fallback_count"] == pytest.approx(1.0)
+    assert result.summary_stats["audio"]["cleanup_fallback_rate"] == pytest.approx(1.0)
+    assert "| audio | 0.000 | 0.000 | 1 | 100.00% |" in report
     assert "cleanup: fallback" in report
 
 

@@ -26,13 +26,18 @@ def test_dictation_commands_advertise_ui_option() -> None:
 def test_eval_command_advertises_eval_options() -> None:
     runner = CliRunner()
 
-    result = runner.invoke(app, ["eval", "--help"])
+    result = runner.invoke(app, ["eval", "--help"], terminal_width=200)
 
     assert result.exit_code == 0
     assert "--dataset" in result.output
     assert "--pipeline" in result.output
     assert "--runs" in result.output
     assert "--cleanup-prompt" in result.output
+    assert "--cleanup-timeo" in result.output
+    assert "--cleanup-prefl" in result.output
+    assert "--no-cleanup-p" in result.output
+    assert "Override cleanup" in result.output
+    assert "Probe and warm" in result.output
 
 
 def test_cleanup_smoke_advertises_prompt_version() -> None:

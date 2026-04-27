@@ -74,3 +74,26 @@ Append one row per pipeline run (see tickets/README.md).
 | TICKET-014 | windows | fused:total_ms | 12018.0 | 14463.0 | 20 | pipeline=fused stage=total_ms |
 | TICKET-014 | windows | fused:vsr_ms | 3843.7 | 4872.5 | 20 | pipeline=fused stage=vsr_ms |
 | TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=warmup_ms |
+| TICKET-008 | ollama | cleanup | 5192.5 | - | 11 | model=llama3.2:3b-instruct-q4_K_M prompt_version=v1 source=asr fallback=False |
+| TICKET-014 | windows | fused:asr_ms | 3730.7 | 3820.9 | 20 | pipeline=fused stage=asr_ms |
+| TICKET-014 | windows | fused:capture_ms | 3999.4 | 3999.4 | 20 | pipeline=fused stage=capture_ms |
+| TICKET-014 | windows | fused:capture_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=capture_open_ms |
+| TICKET-014 | windows | fused:cleanup_ms | 552.8 | 650.7 | 20 | pipeline=fused stage=cleanup_ms |
+| TICKET-014 | windows | fused:fusion_ms | 0.1 | 0.2 | 20 | pipeline=fused stage=fusion_ms |
+| TICKET-014 | windows | fused:inject_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=inject_ms |
+| TICKET-014 | windows | fused:mic_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=mic_open_ms |
+| TICKET-014 | windows | fused:roi_ms | 3318.1 | 3377.8 | 20 | pipeline=fused stage=roi_ms |
+| TICKET-014 | windows | fused:total_ms | 31381.9 | 35279.8 | 20 | pipeline=fused stage=total_ms |
+| TICKET-014 | windows | fused:vsr_ms | 16016.9 | 19735.4 | 20 | pipeline=fused stage=vsr_ms |
+| TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=warmup_ms |
+| TICKET-014 | windows | fused:asr_ms | 119.7 | 129.1 | 20 | pipeline=fused stage=asr_ms |
+| TICKET-014 | windows | fused:capture_ms | 3999.4 | 3999.4 | 20 | pipeline=fused stage=capture_ms |
+| TICKET-014 | windows | fused:capture_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=capture_open_ms |
+| TICKET-014 | windows | fused:cleanup_ms | 197.1 | 231.4 | 20 | pipeline=fused stage=cleanup_ms |
+| TICKET-014 | windows | fused:fusion_ms | 0.0 | 0.1 | 20 | pipeline=fused stage=fusion_ms |
+| TICKET-014 | windows | fused:inject_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=inject_ms |
+| TICKET-014 | windows | fused:mic_open_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=mic_open_ms |
+| TICKET-014 | windows | fused:roi_ms | 994.2 | 1009.9 | 20 | pipeline=fused stage=roi_ms |
+| TICKET-014 | windows | fused:total_ms | 5339.5 | 5614.9 | 20 | pipeline=fused stage=total_ms |
+| TICKET-014 | windows | fused:vsr_ms | 1260.6 | 1446.5 | 20 | pipeline=fused stage=vsr_ms |
+| TICKET-014 | windows | fused:warmup_ms | 0.0 | 0.0 | 20 | pipeline=fused stage=warmup_ms |

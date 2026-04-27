@@ -79,11 +79,55 @@ Run the personal fused baseline:
 python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 1 --out reports/poc-eval-fused-personal.md
 ```
 
+Eval probes and warms the Ollama cleanup model before measured rows by default.
+If your report shows cleanup timeouts, give eval a larger cleanup budget:
+
+```powershell
+python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 1 --cleanup-timeout-ms 5000 --out reports/poc-eval-fused-personal.md
+```
+
+If you need to measure without the warm-up probe, disable it explicitly:
+
+```powershell
+python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 1 --no-cleanup-preflight --out reports/poc-eval-fused-personal.md
+```
+
 For a more stable number after the first smoke run, increase runs:
 
 ```powershell
 python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 3 --out reports/poc-eval-fused-personal.md
 ```
+
+### Calibrated baseline (TICKET-036)
+
+After TICKET-032 (confidence calibration) and TICKET-035 (cleanup timeout + preflight),
+save a second report so fusion policy experiments have a clean before/after anchor.
+
+Run the calibrated baseline (same dataset, longer cleanup budget):
+
+```powershell
+python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 1 --cleanup-timeout-ms 10000 --out reports/poc-eval-fused-personal-calibrated.md
+```
+
+Generate tuning suggestions from the calibrated report:
+
+```powershell
+python -m sabi fused-tuning-suggest `
+  --report reports/poc-eval-fused-personal-calibrated.md `
+  --out reports/fused-tuning-suggestions-calibrated.md
+```
+
+Baseline comparison on the same 20-phrase fused dataset (see `reports/poc-eval-fused-personal.md`
+vs `reports/poc-eval-fused-personal-calibrated.md`):
+
+- **Cleanup health**: the older report timed out on cleanup for every row (`cleanup_fallback=yes`,
+  `cleanup_reason=http_error: ReadTimeout`), so `raw_wer` and `cleaned_wer` matched because cleanup never ran.
+  The calibrated rerun shows `cleanup_fallback_rate=0.00%`, so `cleaned_wer` now reflects real cleanup output.
+- **Accuracy**: `raw_wer` stayed `0.316`, but `cleaned_wer` dropped from `0.316` to `0.237` once cleanup succeeded.
+- **Confidence**: phrase-level `confidence` is no longer stuck at `1.00` on severe ASR/VSR disagreements; see the
+  `Phrase Results` table in the calibrated report (for example `harvard_001` at `0.66` and `harvard_002` at `0.55`).
+- **Latency**: wall-clock and per-stage medians can shift between runs depending on cold/warm model caches and
+  background load. Always compare using the `## Summary` and `## Per-Stage Latency` tables from the specific report file.
 
 ## 4. Optional Cleanup Prompt A/B
 
@@ -104,6 +148,8 @@ Key fields:
 
 - `raw_wer`: how wrong the fused transcript was before cleanup.
 - `cleaned_wer`: how wrong it was after cleanup.
+- `cleanup_fallbacks`: how many measured rows fell back to raw text instead of cleaned text.
+- `cleanup_fallback_rate`: the share of measured cleanup rows that fell back.
 - `total_p50_ms`: normal end-to-end speed.
 - `total_p95_ms`: slower tail cases that users still feel.
 - `confidence`: fused confidence score for each phrase.
@@ -141,6 +187,8 @@ Use the report to decide what to tune manually:
 - If VSR is good and ASR is weak, improve microphone input, room noise, or ASR settings.
 - If both raw inputs are reasonable but fused text is worse, tune fusion thresholds or source weights.
 - If raw WER is good but cleaned WER is worse, tune the cleanup prompt or compare `v1,v2`.
+- If cleanup fallback rate is high, fix Ollama availability or increase `--cleanup-timeout-ms` before judging cleanup quality.
+- If cleanup fallback rate is low but cleaned WER is worse than raw WER, cleanup ran and made the text worse; compare prompts or revise cleanup behavior.
 - If latency is high, inspect the per-stage latency table to find the slow stage.
 - If `high_conf_high_wer` appears, do not trust fused confidence yet; use it as input to confidence calibration.
 - If `asr_vsr_disagree` appears often, compare the ASR/VSR text columns before changing the cleanup prompt.

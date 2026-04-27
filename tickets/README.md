@@ -70,6 +70,12 @@ Demo operators should start with [`../docs/DEMO.md`](../docs/DEMO.md). For a non
 | [TICKET-032](TICKET-032-fused-confidence-calibration.md) | Fused confidence calibration | Fusion | M | 016, 017, 020, 030 |
 | [TICKET-033](TICKET-033-personal-vsr-finetuning-research.md) | Personal VSR fine-tuning research spike | VSR | M | 019, 020, 030 |
 | [TICKET-034](TICKET-034-personal-adaptation-dataset-export.md) | Personal adaptation dataset export | Eval | M | 019, 020, 033 |
+| [TICKET-035](TICKET-035-cleanup-reliability-eval-timeouts.md) | Cleanup reliability for eval timeouts | Cleanup | S | 018, 020, 030 |
+| [TICKET-036](TICKET-036-calibrated-fused-eval-baseline.md) | Calibrated fused eval baseline | Eval | S | 020, 032, 035 |
+| [TICKET-037](TICKET-037-fusion-mode-ab-eval.md) | Fusion mode A/B eval | Eval | M | 016, 020, 030, 036 |
+| [TICKET-038](TICKET-038-low-alignment-asr-fallback.md) | Low-alignment ASR fallback policy | Fusion | M | 016, 032, 037 |
+| [TICKET-039](TICKET-039-expanded-personal-fused-eval-set.md) | Expanded personal fused eval set | Eval | M | 019, 020, 036 |
+| [TICKET-040](TICKET-040-fused-latency-profile-optimization.md) | Fused latency profile + optimization | Pipeline | M | 017, 030, 036 |
 
 ## Dependency graph
 
@@ -109,6 +115,12 @@ graph TD
   T032[TICKET-032 Confidence calibration]
   T033[TICKET-033 VSR fine-tuning research]
   T034[TICKET-034 Adaptation export]
+  T035[TICKET-035 Cleanup reliability]
+  T036[TICKET-036 Calibrated fused baseline]
+  T037[TICKET-037 Fusion mode A/B]
+  T038[TICKET-038 Low-alignment ASR fallback]
+  T039[TICKET-039 Expanded fused eval]
+  T040[TICKET-040 Fused latency]
 
   T001 --> T002
   T002 --> T003
@@ -181,6 +193,25 @@ graph TD
   T019 --> T034
   T020 --> T034
   T033 --> T034
+  T018 --> T035
+  T020 --> T035
+  T030 --> T035
+  T020 --> T036
+  T032 --> T036
+  T035 --> T036
+  T016 --> T037
+  T020 --> T037
+  T030 --> T037
+  T036 --> T037
+  T016 --> T038
+  T032 --> T038
+  T037 --> T038
+  T019 --> T039
+  T020 --> T039
+  T036 --> T039
+  T017 --> T040
+  T030 --> T040
+  T036 --> T040
 ```
 
 ## Suggested burn-down order
@@ -203,15 +234,18 @@ Week 2 - dictation polish + Phase 2 fusion + cleanup polish (current focus):
 Week 2.5 - personal fused diagnostics + adaptation planning:
 
 - **Day 13.5:** 030, 031, 032 (diagnose personal fused eval, turn results into recommendations, make confidence honest).
-- **Day 13.75:** 033, 034 (research whether personal VSR fine-tuning is feasible, then export adaptation data only if it is).
+- **Day 13.75:** 033 (research whether personal VSR fine-tuning is feasible). 034 is deferred unless a real upstream training recipe is chosen.
+- **Day 13.8:** 035, 036 (fix cleanup timeout/fallback, then rerun the calibrated fused baseline).
+- **Day 13.9:** 037, 038 (compare fusion modes, then adjust low-alignment fallback policy if the data supports it).
+- **Day 14:** 039, 040 (expand the personal eval set and profile fused latency).
 
 Week 3 - meeting mode (deferred behind fusion + polish):
 
-- **Day 14:** 021, 022 (VB-Cable install docs + Kokoro TTS).
-- **Day 15:** 023, 024, 025 (audio sink, meeting prompt, app detection).
-- **Day 16:** 026, 028 (mode switcher + mute toggle can be built in parallel).
-- **Day 17:** 027 (silent-meeting pipeline wire-up).
-- **Day 18:** 029 (meeting demo runbook + listening-test eval).
+- **Day 15:** 021, 022 (VB-Cable install docs + Kokoro TTS).
+- **Day 16:** 023, 024, 025 (audio sink, meeting prompt, app detection).
+- **Day 17:** 026, 028 (mode switcher + mute toggle can be built in parallel).
+- **Day 18:** 027 (silent-meeting pipeline wire-up).
+- **Day 19:** 029 (meeting demo runbook + listening-test eval).
 
 ## Ticket template
 

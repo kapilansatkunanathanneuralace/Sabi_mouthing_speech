@@ -90,6 +90,7 @@ class EvalConfig:
     hardware_label: str = "windows"
     latency_log_path: Path = LATENCY_LOG
     cleanup_prompts: tuple[PromptVersion, ...] = ("v1",)
+    cleanup_preflight: bool = True
     silent_config: SilentDictateConfig = field(default_factory=SilentDictateConfig)
     audio_config: AudioDictateConfig = field(default_factory=AudioDictateConfig)
     fused_config: FusedDictateConfig = field(default_factory=FusedDictateConfig)
@@ -703,6 +704,52 @@ def _runner_for_prompt(
     return runner
 
 
+def _preflight_cleanup(
+    config: EvalConfig,
+    silent_runner: SilentOfflineRunner | None,
+    audio_runner: AudioOfflineRunner | None,
+    fused_runner: FusedOfflineRunner | None,
+) -> None:
+    """Warm cleanup for real eval runs without touching injected fake runners."""
+
+    selected = set(config.selected_pipelines)
+    candidates: list[tuple[str, CleanupConfig, bool]] = []
+    if "silent" in selected:
+        candidates.append(("vsr", config.silent_config.cleanup, silent_runner is None))
+    if "audio" in selected:
+        candidates.append(("asr", config.audio_config.cleanup, audio_runner is None))
+    if "fused" in selected:
+        candidates.append(("fused", config.fused_config.cleanup, fused_runner is None))
+
+    seen: set[tuple[str, str, PromptVersion, int]] = set()
+    for prompt_version in config.cleanup_prompts:
+        for source, cleanup_config, should_probe in candidates:
+            if not should_probe:
+                continue
+            prompt_config = cleanup_config.model_copy(
+                update={"prompt_version": prompt_version}
+            )
+            key = (
+                prompt_config.base_url,
+                prompt_config.model,
+                prompt_config.prompt_version,
+                prompt_config.timeout_ms,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                with TextCleaner(prompt_config) as cleaner:
+                    if cleaner.is_available(force_refresh=True):
+                        cleaner.cleanup(
+                            "cleanup warmup",
+                            CleanupContext(source=source, register_hint="dictation"),  # type: ignore[arg-type]
+                        )
+            except Exception:
+                # Eval rows still record fallback reasons; preflight should never abort eval.
+                continue
+
+
 def run_eval(
     config: EvalConfig,
     *,
@@ -715,6 +762,8 @@ def run_eval(
     started = time.perf_counter()
     phrases = load_phrases(config.dataset_path)
     records: list[EvalRecord] = []
+    if config.cleanup_preflight:
+        _preflight_cleanup(config, silent_runner, audio_runner, fused_runner)
 
     for prompt_version in config.cleanup_prompts:
         silent = _runner_for_prompt(
@@ -851,9 +900,22 @@ def aggregate_summary_stats(records: Iterable[EvalRecord]) -> dict[str, dict[str
     out: dict[str, dict[str, float]] = {}
     for pipeline, items in grouped.items():
         total_stats = percentile_stats(r.event.latencies.get("total_ms", 0.0) for r in items)
+        cleanup_record_count = sum(
+            1 for r in items if getattr(r.event, "used_fallback", None) is not None
+        )
+        cleanup_fallback_count = sum(
+            1 for r in items if getattr(r.event, "used_fallback", None) is True
+        )
         out[pipeline] = {
             "raw_wer": sum(r.raw_wer for r in items) / len(items),
             "cleaned_wer": sum(r.cleaned_wer for r in items) / len(items),
+            "cleanup_record_count": float(cleanup_record_count),
+            "cleanup_fallback_count": float(cleanup_fallback_count),
+            "cleanup_fallback_rate": (
+                cleanup_fallback_count / cleanup_record_count
+                if cleanup_record_count
+                else 0.0
+            ),
             **{f"total_{key}": value for key, value in total_stats.items()},
         }
     return out
@@ -921,13 +983,24 @@ def _summary_table(summary_stats: dict[str, dict[str, float]]) -> str:
                 pipeline,
                 f"{stats['raw_wer']:.3f}",
                 f"{stats['cleaned_wer']:.3f}",
+                f"{stats['cleanup_fallback_count']:.0f}",
+                f"{stats['cleanup_fallback_rate']:.2%}",
                 f"{stats['total_p50']:.1f}",
                 f"{stats['total_p95']:.1f}",
                 f"{stats['total_max']:.1f}",
             ]
         )
     return _markdown_table(
-        ["pipeline", "raw_wer", "cleaned_wer", "total_p50_ms", "total_p95_ms", "total_max_ms"],
+        [
+            "pipeline",
+            "raw_wer",
+            "cleaned_wer",
+            "cleanup_fallbacks",
+            "cleanup_fallback_rate",
+            "total_p50_ms",
+            "total_p95_ms",
+            "total_max_ms",
+        ],
         rows,
     )
 

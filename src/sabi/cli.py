@@ -1221,6 +1221,17 @@ def eval_cmd(
         "--cleanup-prompt",
         help="Cleanup prompt versions: v1 or v1,v2.",
     ),
+    cleanup_timeout_ms: int | None = typer.Option(
+        None,
+        "--cleanup-timeout-ms",
+        min=1,
+        help="Override cleanup timeout for eval runs, in milliseconds.",
+    ),
+    cleanup_preflight: bool = typer.Option(
+        True,
+        "--cleanup-preflight/--no-cleanup-preflight",
+        help="Probe and warm the cleanup model before measured eval rows.",
+    ),
     out: Path | None = typer.Option(
         None,
         "--out",
@@ -1236,6 +1247,9 @@ def eval_cmd(
 
     from sabi.eval import EvalConfig, MissingEvalDependencyError, run_eval
     from sabi.eval.harness import require_eval_dependencies
+    from sabi.pipelines.audio_dictate import AudioDictateConfig
+    from sabi.pipelines.fused_dictate import FusedDictateConfig
+    from sabi.pipelines.silent_dictate import SilentDictateConfig
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -1260,6 +1274,26 @@ def eval_cmd(
             "--cleanup-prompt contains duplicate versions",
             param_hint="--cleanup-prompt",
         )
+    if cleanup_timeout_ms is not None:
+        silent_config = SilentDictateConfig(
+            cleanup=SilentDictateConfig().cleanup.model_copy(
+                update={"timeout_ms": cleanup_timeout_ms}
+            )
+        )
+        audio_config = AudioDictateConfig(
+            cleanup=AudioDictateConfig().cleanup.model_copy(
+                update={"timeout_ms": cleanup_timeout_ms}
+            )
+        )
+        fused_config = FusedDictateConfig(
+            cleanup=FusedDictateConfig().cleanup.model_copy(
+                update={"timeout_ms": cleanup_timeout_ms}
+            )
+        )
+    else:
+        silent_config = SilentDictateConfig()
+        audio_config = AudioDictateConfig()
+        fused_config = FusedDictateConfig()
     try:
         require_eval_dependencies()
     except MissingEvalDependencyError as exc:
@@ -1273,6 +1307,10 @@ def eval_cmd(
             warmups=warmups,
             pipeline=normalized,  # type: ignore[arg-type]
             cleanup_prompts=cleanup_prompts,  # type: ignore[arg-type]
+            cleanup_preflight=cleanup_preflight,
+            silent_config=silent_config,
+            audio_config=audio_config,
+            fused_config=fused_config,
             out_path=out,
         )
     )

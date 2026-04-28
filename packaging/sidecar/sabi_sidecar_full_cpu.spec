@@ -1,8 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for the Sabi sidecar.
+"""Full CPU PyInstaller spec for dictation-capable runtime packs.
 
-Run from the repo root via:
-    python -m PyInstaller packaging/sidecar/sabi_sidecar.spec --noconfirm
+Build this profile from a CPU-only Python environment. Unlike the slim installer
+sidecar, this includes ML runtime dependencies needed by silent/audio/fused dictation.
 """
 
 from pathlib import Path
@@ -31,6 +31,7 @@ datas += collect_data_files("mediapipe")
 hiddenimports = [
     "av",
     "cv2",
+    "ctranslate2",
     "editdistance",
     "faster_whisper",
     "hydra",
@@ -44,6 +45,7 @@ hiddenimports = [
     "pytorch_lightning",
     "scipy",
     "sentencepiece",
+    "skimage",
     "sounddevice",
     "torch",
     "torchaudio",
@@ -61,9 +63,9 @@ a = Analysis(
     hookspath=[str(SPEC_DIR / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter"],
+    excludes=["tkinter", "matplotlib.tests", "pandas.tests", "scipy.tests"],
     noarchive=False,
-    optimize=0,
+    optimize=1,
 )
 pyz = PYZ(a.pure)
 

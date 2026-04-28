@@ -3,6 +3,8 @@
 TICKET-049 packages the Electron desktop shell as a per-user NSIS installer for
 Windows x64. The installer bundles the built Electron app and the PyInstaller sidecar
 tree, but it does not bundle model weights.
+It also does not bundle the full dictation runtime; the app downloads a separate
+CPU runtime pack before enabling silent/audio/fused dictation.
 
 ## Prerequisites
 
@@ -42,6 +44,7 @@ The validation script checks:
 - An NSIS setup executable exists in `desktop/dist/`.
 - The installer archive stays below the 250 MB budget.
 - The sidecar is present under `win-unpacked/resources/sidecar/sabi-sidecar/`.
+- The full CPU runtime manifest is present under `win-unpacked/resources/runtime/`.
 - The packaged sidecar answers `meta.version` over JSON-RPC.
 - The installer Authenticode status is printed. Set `WIN_EXPECT_SIGNED=1` to fail
   validation unless Windows reports a valid signature.
@@ -82,6 +85,21 @@ shortcuts. Launch Sabi from the finish page or shortcut and complete onboarding.
 Model weights are intentionally excluded from the installer and download into
 `%LOCALAPPDATA%\Sabi\models` through the app's cache manager. Uninstall keeps user
 data and model cache by default.
+
+## Full Dictation Runtime
+
+The installer is a bootstrap app. It includes a slim sidecar for onboarding, probing,
+model-cache operations, and runtime-pack installation. Real dictation requires a
+separate full CPU sidecar runtime pack built with:
+
+```powershell
+python scripts/build_sidecar_full_cpu.py
+```
+
+Publish the generated zip and update `configs/runtime/full-cpu.json` with its URL,
+SHA256, and size. On first launch, the desktop app can download, verify, extract, and
+activate that runtime under `%LOCALAPPDATA%\Sabi\runtime\full-cpu`. After activation,
+Electron restarts the sidecar from the full runtime path.
 
 ## VM Smoke
 

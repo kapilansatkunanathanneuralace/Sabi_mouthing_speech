@@ -778,7 +778,7 @@ class FusedDictatePipeline:
         base_decision: PasteDecision,
     ) -> tuple[float, PasteDecision, str | None, int | None]:
         if self._config.dry_run:
-            print(text)
+            logger.info("fused_dictate dry-run transcript: %s", text)
             return 0.0, "dry_run", None, None
         try:
             cfg = self._config.inject

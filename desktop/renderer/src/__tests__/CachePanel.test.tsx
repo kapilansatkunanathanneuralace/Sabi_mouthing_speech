@@ -17,7 +17,26 @@ function installBridge() {
       onNotification: vi.fn()
     },
     logs: { openFolder: vi.fn() },
+    clipboard: { writeText: vi.fn() },
+    dictationHistory: {
+      load: vi.fn(async () => []),
+      save: vi.fn(),
+      clear: vi.fn()
+    },
     cache: { openFolder: vi.fn() },
+    runtime: {
+      status: vi.fn(),
+      download: vi.fn(),
+      verify: vi.fn(),
+      activate: vi.fn(),
+      clear: vi.fn()
+    },
+    ollama: {
+      status: vi.fn(),
+      openInstaller: vi.fn(),
+      pullModel: vi.fn(),
+      onProgress: vi.fn()
+    },
     settings: {
       get: vi.fn(),
       update: vi.fn()

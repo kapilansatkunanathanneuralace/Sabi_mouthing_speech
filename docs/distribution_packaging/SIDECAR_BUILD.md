@@ -80,6 +80,26 @@ release sidecar. Largest contributors:
 Full inference release builds should be produced from a CPU-only dependency
 environment when the production runtime dependency set is finalized.
 
+## Full CPU Runtime Pack
+
+Real silent/audio/fused dictation needs the full ML runtime, which is intentionally
+not bundled in the NSIS installer. Build that runtime separately from a CPU-only
+environment:
+
+```powershell
+python scripts/build_sidecar_full_cpu.py
+```
+
+This uses `packaging/sidecar/sabi_sidecar_full_cpu.spec`, writes the frozen sidecar to
+`packaging/sidecar/full-cpu-dist/`, then creates a zip and manifest under
+`packaging/sidecar/runtime-packs/`. The full runtime pack should include Torch CPU,
+TorchVision, MediaPipe, faster-whisper/CTranslate2, AV, SciPy, Chaplin resources, and
+the Sabi dictation pipelines. Do not build this artifact from a CUDA development
+environment unless you intentionally want a very large GPU runtime pack.
+
+The desktop app reads `configs/runtime/full-cpu.json` from packaged resources and
+activates the downloaded runtime under `%LOCALAPPDATA%\Sabi\runtime\full-cpu`.
+
 ## Output Layout
 
 The generated tree is ignored by Git:

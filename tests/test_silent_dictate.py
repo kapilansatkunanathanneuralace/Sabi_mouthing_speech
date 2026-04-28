@@ -8,6 +8,7 @@ without a webcam, CUDA, Ollama, clipboard, or real keyboard hook.
 from __future__ import annotations
 
 import json
+import logging
 import queue
 import time
 from pathlib import Path
@@ -605,11 +606,12 @@ def test_force_paste_always_mode_ignores_confidence_floor(
     assert bag["paste"].calls and bag["paste"].calls[0][0] == "bypass"
 
 
-def test_dry_run_prints_and_skips_paste(
+def test_dry_run_logs_and_skips_paste(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
     base_frames: list[tuple[int, np.ndarray]],
 ) -> None:
+    caplog.set_level(logging.INFO, logger="sabi.pipelines.silent_dictate")
     cfg = SilentDictateConfig(
         jsonl_dir=tmp_path,
         hotkey=HotkeyConfig(binding="ctrl+alt+space", min_hold_ms=0, cooldown_ms=0),
@@ -631,8 +633,7 @@ def test_dry_run_prints_and_skips_paste(
     assert len(events) == 1
     assert events[0].decision == "dry_run"
     assert bag["paste"].calls == []
-    out = capsys.readouterr().out
-    assert "dry text" in out
+    assert "silent_dictate dry-run transcript: dry text" in caplog.text
 
 
 def test_latency_keys_present_and_monotonic(

@@ -21,8 +21,33 @@ contextBridge.exposeInMainWorld("sabi", {
   logs: {
     openFolder: () => ipcRenderer.invoke("logs:open-folder") as Promise<string>
   },
+  clipboard: {
+    writeText: (text: string) => ipcRenderer.invoke("clipboard:write-text", text) as Promise<void>
+  },
+  dictationHistory: {
+    load: () => ipcRenderer.invoke("dictation-history:load"),
+    save: (entries: unknown) => ipcRenderer.invoke("dictation-history:save", entries),
+    clear: () => ipcRenderer.invoke("dictation-history:clear")
+  },
   cache: {
     openFolder: () => ipcRenderer.invoke("cache:open-folder") as Promise<string>
+  },
+  runtime: {
+    status: () => ipcRenderer.invoke("runtime:status"),
+    download: (params?: unknown) => ipcRenderer.invoke("runtime:download", params),
+    verify: () => ipcRenderer.invoke("runtime:verify"),
+    activate: () => ipcRenderer.invoke("runtime:activate"),
+    clear: () => ipcRenderer.invoke("runtime:clear")
+  },
+  ollama: {
+    status: () => ipcRenderer.invoke("ollama:status"),
+    openInstaller: (params?: unknown) => ipcRenderer.invoke("ollama:open-installer", params),
+    pullModel: (params?: unknown) => ipcRenderer.invoke("ollama:pull-model", params),
+    onProgress: (callback: (progress: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress);
+      ipcRenderer.on("ollama:progress", listener);
+      return () => ipcRenderer.off("ollama:progress", listener);
+    }
   },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),

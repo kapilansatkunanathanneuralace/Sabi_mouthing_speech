@@ -6,6 +6,12 @@ import { describe, expect, it, vi } from "vitest";
 import { ShortcutController, type ShortcutRegistry } from "../shortcuts.js";
 import { SettingsStore } from "../settings.js";
 
+function nextTick(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 function makeHarness() {
   let callback: (() => void) | null = null;
   const registry: ShortcutRegistry = {
@@ -34,6 +40,7 @@ describe("ShortcutController", () => {
     shortcuts.register();
     callback();
     await vi.waitFor(() => expect(sidecar.call).toHaveBeenCalledWith("dictation.fused.start", { dry_run: false }));
+    await nextTick();
     callback();
     await vi.waitFor(() => expect(sidecar.call).toHaveBeenCalledWith("dictation.fused.stop"));
   });
@@ -43,6 +50,7 @@ describe("ShortcutController", () => {
     shortcuts.register();
     callback();
     await vi.waitFor(() => expect(sidecar.call).toHaveBeenCalledWith("dictation.silent.start", { dry_run: false }));
+    await nextTick();
     callback();
     await vi.waitFor(() => expect(sidecar.call).toHaveBeenCalledWith("dictation.silent.stop"));
   });
@@ -53,5 +61,26 @@ describe("ShortcutController", () => {
     store.update({ hotkey: "Control+Shift+Space" });
     expect(registry.unregister).toHaveBeenCalledWith("Control+Alt+Space");
     expect(registry.register).toHaveBeenLastCalledWith("Control+Shift+Space", expect.any(Function));
+  });
+
+  it("ignores duplicate shortcut events while a start or stop is in flight", async () => {
+    let resolveStart: (() => void) | undefined;
+    const { callback, shortcuts, sidecar } = makeHarness();
+    sidecar.call.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStart = () => resolve(null);
+        })
+    );
+    shortcuts.register();
+
+    callback();
+    callback();
+    await vi.waitFor(() => expect(sidecar.call).toHaveBeenCalledTimes(1));
+
+    resolveStart?.();
+    await vi.waitFor(() =>
+      expect(sidecar.call).toHaveBeenCalledWith("dictation.silent.start", { dry_run: false })
+    );
   });
 });

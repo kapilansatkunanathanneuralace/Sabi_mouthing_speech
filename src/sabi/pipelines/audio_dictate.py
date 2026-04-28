@@ -1097,7 +1097,7 @@ class AudioDictatePipeline:
     ) -> tuple[float, PasteDecision, str | None, int | None]:
         """Run paste/dry-run and return latency, decision, error, restore deadline."""
         if self._config.dry_run:
-            print(text)
+            logger.info("audio_dictate dry-run transcript: %s", text)
             return 0.0, "dry_run", None, None
         try:
             cfg = self._config.inject

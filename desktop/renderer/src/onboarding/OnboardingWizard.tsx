@@ -7,6 +7,7 @@ import type {
   OnboardingStep,
   PlatformInfo,
   ProbeResponse,
+  RuntimeStatus,
   SidecarNotification
 } from "../types/sidecar";
 import { AccessibilityStep } from "./AccessibilityStep";
@@ -21,10 +22,19 @@ interface Props {
   call: (method: string, params?: JsonRpcParams) => Promise<JsonValue>;
   onComplete: (settings: DesktopSettings) => void;
   platform: PlatformInfo;
+  runtime: RuntimeStatus | null;
+  setRuntime: (runtime: RuntimeStatus) => void;
   settings: DesktopSettings;
 }
 
-export function OnboardingWizard({ call, onComplete, platform, settings }: Props) {
+export function OnboardingWizard({
+  call,
+  onComplete,
+  platform,
+  runtime,
+  setRuntime,
+  settings
+}: Props) {
   const [step, setStep] = useState<OnboardingStep>(settings.onboardingStep);
   const [notifications, setNotifications] = useState<SidecarNotification[]>([]);
   const steps = useMemo(() => stepsForPlatform(platform), [platform]);
@@ -105,6 +115,8 @@ export function OnboardingWizard({ call, onComplete, platform, settings }: Props
           goTo={goTo}
           notifications={notifications}
           platform={platform}
+          runtime={runtime}
+          setRuntime={setRuntime}
         />
       ) : null}
       {step === "optional" ? <OptionalStep goTo={goTo} platform={platform} /> : null}

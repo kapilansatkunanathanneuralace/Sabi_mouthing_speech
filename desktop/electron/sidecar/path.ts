@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { activeRuntimeBinary, activeRuntimeCwd, hasActiveRuntime } from "../runtime.js";
+
 export interface SidecarCommand {
   command: string;
   args: string[];
@@ -29,6 +31,9 @@ export function resolveSidecarCommand(): SidecarCommand {
   }
 
   if (app.isPackaged) {
+    if (hasActiveRuntime()) {
+      return { command: activeRuntimeBinary(), args: [], cwd: activeRuntimeCwd() };
+    }
     return { command: productionBinary(), args: [], cwd: process.resourcesPath };
   }
 

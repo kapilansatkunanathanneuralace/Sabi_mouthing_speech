@@ -35,7 +35,7 @@ None.
   - Calls `models.download_vsr` over the sidecar with progress notifications surfacing in a real progress bar.
   - Verifies hashes via existing `configs/vsr_weights.toml`; failure rolls back and asks the user to retry.
 - Optional steps:
-  - Ollama: detect via `probe.run`; if missing, link to `docs/INSTALL.md` Ollama section and offer a "skip for now" exit.
+  - Ollama: detect from Electron via the local CLI/API, open the official Ollama installer page after explicit consent, and offer a consent-gated `ollama pull` for the configured cleanup model. Users can still skip for now.
   - Virtual mic: link to `docs/INSTALL-VBCABLE.md` (Windows) or a future `INSTALL-BLACKHOLE.md` (macOS) per platform; this ticket does not bundle drivers.
 - Settings on completion:
   - Mark `onboardingCompleted: true` in the settings store.
@@ -58,7 +58,7 @@ None.
 
 ## Out of scope
 
-- Auto-installing Ollama, VB-Cable, or BlackHole (out of policy + complexity).
+- Silent or bundled installation of Ollama, VB-Cable, or BlackHole. Ollama guided setup is allowed only through user-consented external install and model pull actions.
 - Sign-in / accounts (post-PoC product decision).
 - Telemetry or install metrics (separate ticket if/when needed).
 

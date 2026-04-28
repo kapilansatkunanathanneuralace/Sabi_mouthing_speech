@@ -67,6 +67,7 @@ None.
 - Added a pruned release sidecar build under `packaging/sidecar/release-dist/`.
 - Local self-signed packaging now produces `desktop/dist/Sabi-0.0.1-setup.exe` at approximately 174 MB.
 - `npm run validate:win-package` verifies the generated package, packaged sidecar `meta.version`, and local Authenticode signature when `WIN_EXPECT_SIGNED=1`.
+- The installer remains a bootstrap app. Full silent/audio/fused dictation requires a separate full CPU runtime pack, downloaded and activated after install from `%LOCALAPPDATA%\Sabi\runtime\full-cpu`.
 - Remaining blockers: a production OV/EV or Azure Trusted Signing certificate is still required for public release, and clean Windows 11 VM install/uninstall validation has not been run.
 
 ## Out of scope

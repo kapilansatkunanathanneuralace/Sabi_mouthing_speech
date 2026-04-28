@@ -3,4 +3,5 @@ dist-electron/
 dist-renderer/
 release/
 dist/
+dist-reinstall/
 .certs/

@@ -8,6 +8,7 @@ without a microphone, CUDA, Ollama, clipboard, or real keyboard hook.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import queue
 import time
@@ -737,9 +738,10 @@ def test_vad_force_paste_always_pastes_low_confidence(tmp_path: Path) -> None:
 # --- Cross-cutting tests --------------------------------------------------
 
 
-def test_dry_run_prints_and_skips_paste(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_dry_run_logs_and_skips_paste(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO, logger="sabi.pipelines.audio_dictate")
     cfg = _ptt_cfg(tmp_path, dry_run=True)
     pipeline, bag = _build(
         cfg=cfg,
@@ -755,8 +757,7 @@ def test_dry_run_prints_and_skips_paste(
     assert len(events) == 1
     assert events[0].decision == "dry_run"
     assert bag["paste"].calls == []
-    out = capsys.readouterr().out
-    assert "dry text" in out
+    assert "audio_dictate dry-run transcript: dry text" in caplog.text
 
 
 def test_latency_keys_present_and_monotonic(tmp_path: Path) -> None:

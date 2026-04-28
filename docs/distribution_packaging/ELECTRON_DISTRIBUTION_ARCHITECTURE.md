@@ -98,6 +98,19 @@ Installer packaging always uses the release sidecar output:
 packaging/sidecar/release-dist/sabi-sidecar/
 ```
 
+Full dictation uses a third artifact: the full CPU runtime pack. It is built with
+`scripts/build_sidecar_full_cpu.py`, zipped, hash-verified, and downloaded after
+install. Electron activates it under the app-owned runtime directory and prefers that
+sidecar over the bundled slim sidecar when present.
+
+```mermaid
+flowchart LR
+  installer["Bootstrap Installer"] --> slimRuntime["Slim Sidecar"]
+  slimRuntime --> runtimeInstaller["Runtime Download And Verify"]
+  runtimeInstaller --> fullRuntime["Full CPU Sidecar Runtime"]
+  fullRuntime --> dictation["Silent Audio Fused Dictation"]
+```
+
 ## Windows Packaging Flow
 
 ```mermaid
@@ -112,8 +125,9 @@ flowchart LR
 
 `electron-builder` reads `desktop/build/electron-builder.yml`. It bundles compiled
 Electron assets, renderer assets, icons, `package.json`, and the release sidecar as
-`resources/sidecar/sabi-sidecar/`. The NSIS target is per-user, avoids admin
-elevation, and creates Start Menu and desktop shortcuts.
+`resources/sidecar/sabi-sidecar/`. It also bundles the full runtime manifest under
+`resources/runtime/`. The NSIS target is per-user, avoids admin elevation, and creates
+Start Menu and desktop shortcuts.
 
 ## Signing Modes
 

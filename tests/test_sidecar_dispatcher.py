@@ -93,6 +93,8 @@ class _FakeEvent:
 
 class _FakePipeline:
     last_config = None
+    starts = 0
+    stops = 0
 
     def __init__(self, config) -> None:  # noqa: ANN001
         self.config = config
@@ -113,11 +115,19 @@ class _FakePipeline:
     def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
         return None
 
+    def on_trigger_start(self, _event) -> None:  # noqa: ANN001
+        _FakePipeline.starts += 1
+
+    def on_trigger_stop(self, _event) -> None:  # noqa: ANN001
+        _FakePipeline.stops += 1
+
 
 def test_dictation_start_defaults_to_dry_run(monkeypatch) -> None:  # noqa: ANN001
     import sabi.pipelines.silent_dictate as silent
 
     monkeypatch.setattr(silent, "SilentDictatePipeline", _FakePipeline)
+    _FakePipeline.starts = 0
+    _FakePipeline.stops = 0
     manager = DictationSessionManager()
     dispatcher = SidecarDispatcher()
     register_dictation_handlers(dispatcher, manager)
@@ -138,5 +148,8 @@ def test_dictation_start_defaults_to_dry_run(monkeypatch) -> None:  # noqa: ANN0
 
     assert result.response is not None
     assert result.response["result"]["dry_run"] is True
+    assert result.response["result"]["capturing"] is True
     assert _FakePipeline.last_config.dry_run is True
+    assert _FakePipeline.starts == 1
+    assert _FakePipeline.stops == 1
     assert any(method == "dictation.silent.status" for method, _params in notifications)

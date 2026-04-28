@@ -253,7 +253,11 @@ def collect_probe_results(*, camera_index: int = 0) -> dict[str, object]:
         "output": record.export_text(clear=True).strip(),
     }
 
-    audio_ok = _probe_audio(record)
+    try:
+        audio_ok = _probe_audio(record)
+    except Exception as exc:  # noqa: BLE001 - packaged audio backends may fail to load
+        audio_ok = False
+        record.print(f"[red]Audio input: FAILED - {exc!s}[/red]")
     if not audio_ok:
         failures += 1
     audio = {"ok": audio_ok, "output": record.export_text(clear=True).strip()}

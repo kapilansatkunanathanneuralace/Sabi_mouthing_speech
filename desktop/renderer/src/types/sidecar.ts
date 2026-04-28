@@ -43,6 +43,7 @@ export interface ProbeResponse {
 
 export type DesktopMode = "push_to_talk" | "toggle";
 export type DesktopPipeline = "silent" | "audio" | "fused";
+export type DictationPipeline = DesktopPipeline | "vsr";
 export type OnboardingStep =
   | "welcome"
   | "camera"
@@ -102,4 +103,91 @@ export interface CacheStatusResponse {
 export interface CacheActionResponse {
   ok: boolean;
   manifests: CacheManifestStatus[];
+}
+
+export type RuntimeState = "missing" | "available" | "installed" | "corrupt" | "unsupported";
+
+export interface RuntimeManifest {
+  name: string;
+  version: string;
+  platform: string;
+  arch: string;
+  min_desktop_version: string;
+  url: string;
+  sha256: string;
+  size_bytes: number;
+  artifact: string;
+  sidecar_dir: string;
+  description: string;
+}
+
+export interface RuntimeStatus {
+  state: RuntimeState;
+  root: string;
+  active_dir: string;
+  sidecar_bin: string;
+  manifest: RuntimeManifest;
+  message?: string;
+}
+
+export interface RuntimeDownloadParams {
+  url?: string;
+  path?: string;
+  force?: boolean;
+}
+
+export interface OllamaStatus {
+  cliFound: boolean;
+  cliPath?: string;
+  apiReachable: boolean;
+  baseUrl: string;
+  model: string;
+  modelPresent: boolean;
+  installed: boolean;
+  ready: boolean;
+  detail: string;
+  models: string[];
+}
+
+export interface OllamaProgress {
+  model: string;
+  stream: "stdout" | "stderr" | "status";
+  message: string;
+}
+
+export interface OllamaPullResult {
+  ok: boolean;
+  model: string;
+  exitCode: number | null;
+}
+
+export interface DictationUtterancePayload {
+  pipeline?: DictationPipeline;
+  utterance_id?: number;
+  started_at_ns?: number;
+  ended_at_ns?: number;
+  text_raw?: string;
+  text_final?: string;
+  confidence?: number;
+  used_fallback?: boolean;
+  decision?: string;
+  error?: string | null;
+  asr?: JsonValue;
+  vsr?: JsonValue;
+  fusion?: JsonValue;
+  latencies?: Record<string, number>;
+}
+
+export interface DictationHistoryEntry {
+  id: string;
+  createdAt: string;
+  pipeline: DictationPipeline;
+  utteranceId?: number;
+  textRaw: string;
+  textFinal: string;
+  confidence?: number;
+  decision?: string;
+  status: "accepted" | "withheld" | "dry_run" | "error";
+  error?: string | null;
+  payload: DictationUtterancePayload;
 }

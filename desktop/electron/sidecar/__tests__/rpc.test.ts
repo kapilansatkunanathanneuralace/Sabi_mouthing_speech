@@ -31,6 +31,19 @@ describe("JsonRpcClient", () => {
     });
   });
 
+  it("ignores non-json stdout without failing pending requests", async () => {
+    const { client, stdout } = makeClient();
+    const errorListener = vi.fn();
+    client.on("error", errorListener);
+
+    const promise = client.call("dictation.fused.stop");
+    stdout.write("I LOVE YOU\n");
+    stdout.write('{"jsonrpc":"2.0","id":1,"result":{"ok":true}}\n');
+
+    await expect(promise).resolves.toEqual({ ok: true });
+    expect(errorListener).not.toHaveBeenCalled();
+  });
+
   it("rejects json-rpc errors", async () => {
     const { client, stdout } = makeClient();
     const promise = client.call("missing.method");

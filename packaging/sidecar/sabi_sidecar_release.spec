@@ -25,7 +25,7 @@ datas = []
 datas += existing_tree(ROOT / "configs", "resources/configs")
 datas += existing_tree(
     ROOT / "src" / "sabi" / "cleanup" / "prompts",
-    "resources/sabi/cleanup/prompts",
+    "sabi/cleanup/prompts",
 )
 datas += collect_data_files("cv2")
 

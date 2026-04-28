@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";
 
+import log from "electron-log";
+
 import type { JsonRpcParams, JsonValue, SidecarNotification } from "./types.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -80,7 +82,7 @@ export class JsonRpcClient extends EventEmitter {
     try {
       payload = JSON.parse(line);
     } catch (error) {
-      this.emit("error", error);
+      log.warn("Ignoring non-JSON sidecar stdout line", { line, error });
       return;
     }
     if (!payload || typeof payload !== "object") {

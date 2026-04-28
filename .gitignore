@@ -32,6 +32,9 @@ packaging/sidecar/package-build/
 packaging/sidecar/package-dist/
 packaging/sidecar/release-build/
 packaging/sidecar/release-dist/
+packaging/sidecar/full-cpu-build/
+packaging/sidecar/full-cpu-dist/
+packaging/sidecar/runtime-packs/
 desktop/dist/
 desktop/.certs/
 

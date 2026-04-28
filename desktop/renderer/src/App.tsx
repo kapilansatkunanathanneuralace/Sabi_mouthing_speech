@@ -1,16 +1,33 @@
 import { useEffect, useState } from "react";
 
 import { CachePanel } from "./CachePanel";
+import { DictationHistory } from "./DictationHistory";
+import { OllamaPanel } from "./OllamaPanel";
 import { OnboardingWizard } from "./onboarding/OnboardingWizard";
+import { RuntimePanel } from "./RuntimePanel";
+import { runtimeReady } from "./runtimeStatus";
 import type { JsonRpcParams, JsonValue } from "./types/sidecar";
-import type { DesktopSettings, PlatformInfo, ProbeResponse } from "./types/sidecar";
+import type {
+  DesktopSettings,
+  DictationHistoryEntry,
+  DictationPipeline,
+  DictationUtterancePayload,
+  PlatformInfo,
+  ProbeResponse,
+  RuntimeStatus,
+  SidecarNotification
+} from "./types/sidecar";
 import { useSidecar } from "./useSidecar";
+
+const MAX_HISTORY_ENTRIES = 50;
 
 function App() {
   const { call, openLogFolder, reconnect, status, version } = useSidecar();
   const [settings, setSettings] = useState<DesktopSettings | null>(null);
   const [platform, setPlatform] = useState<PlatformInfo | null>(null);
   const [probe, setProbe] = useState<ProbeResponse | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
+  const [history, setHistory] = useState<DictationHistoryEntry[]>([]);
   const [probeError, setProbeError] = useState<string | null>(null);
   const [probeLoading, setProbeLoading] = useState(false);
 
@@ -20,6 +37,32 @@ function App() {
     }
     void window.sabi.settings.get().then(setSettings);
     void window.sabi.platform.info().then(setPlatform);
+    void window.sabi.runtime.status().then(setRuntime);
+    void window.sabi.dictationHistory.load().then((entries) => {
+      if (Array.isArray(entries)) {
+        setHistory(entries.filter(isHistoryEntry).slice(0, MAX_HISTORY_ENTRIES));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!window.sabi) {
+      return undefined;
+    }
+    return window.sabi.sidecar.onNotification((notification) => {
+      const entry = historyEntryFromNotification(notification);
+      if (!entry) {
+        return;
+      }
+      setHistory((current) => {
+        const next = [
+          entry,
+          ...current.filter((item) => item.id !== entry.id)
+        ].slice(0, MAX_HISTORY_ENTRIES);
+        void window.sabi?.dictationHistory.save(next);
+        return next;
+      });
+    });
   }, []);
 
   async function runProbe() {
@@ -47,6 +90,19 @@ function App() {
       return;
     }
     setSettings(await window.sabi.settings.update(patch));
+  }
+
+  async function copyHistoryText(text: string) {
+    if (window.sabi) {
+      await window.sabi.clipboard.writeText(text);
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+  }
+
+  async function clearHistory() {
+    setHistory([]);
+    await window.sabi?.dictationHistory.clear();
   }
 
   return (
@@ -82,6 +138,8 @@ function App() {
             call={call}
             onComplete={setSettings}
             platform={platform}
+            runtime={runtime}
+            setRuntime={setRuntime}
             settings={settings}
           />
         ) : (
@@ -91,7 +149,12 @@ function App() {
             probe={probe}
             probeError={probeError}
             probeLoading={probeLoading}
+            history={history}
+            clearHistory={clearHistory}
+            copyHistoryText={copyHistoryText}
             runProbe={runProbe}
+            runtime={runtime}
+            setRuntime={setRuntime}
             settings={settings}
             startSilentDryRun={startSilentDryRun}
             updateSettings={updateSettings}
@@ -104,11 +167,16 @@ function App() {
 
 interface DashboardProps {
   call: (method: string, params?: JsonRpcParams) => Promise<JsonValue>;
+  clearHistory: () => Promise<void>;
+  copyHistoryText: (text: string) => Promise<void>;
+  history: DictationHistoryEntry[];
   openLogFolder: () => Promise<void>;
   probe: ProbeResponse | null;
   probeError: string | null;
   probeLoading: boolean;
   runProbe: () => Promise<void>;
+  runtime: RuntimeStatus | null;
+  setRuntime: (runtime: RuntimeStatus) => void;
   settings: DesktopSettings | null;
   startSilentDryRun: () => Promise<void>;
   updateSettings: (patch: Partial<DesktopSettings>) => Promise<void>;
@@ -116,11 +184,16 @@ interface DashboardProps {
 
 function Dashboard({
   call,
+  clearHistory,
+  copyHistoryText,
+  history,
   openLogFolder,
   probe,
   probeError,
   probeLoading,
   runProbe,
+  runtime,
+  setRuntime,
   settings,
   startSilentDryRun,
   updateSettings
@@ -131,7 +204,12 @@ function Dashboard({
           <button type="button" onClick={() => void runProbe()} disabled={probeLoading}>
             {probeLoading ? "Running probe..." : "Run probe"}
           </button>
-          <button type="button" onClick={() => void startSilentDryRun()}>
+          <button
+            type="button"
+            disabled={!runtimeReady(runtime)}
+            title={runtimeReady(runtime) ? undefined : "Install the full dictation runtime first."}
+            onClick={() => void startSilentDryRun()}
+          >
             Start silent dry-run
           </button>
           <button type="button" onClick={() => void openLogFolder()}>
@@ -189,6 +267,9 @@ function Dashboard({
             </label>
           </section>
         ) : null}
+        <RuntimePanel onChange={setRuntime} runtime={runtime} />
+        <DictationHistory entries={history} onClear={clearHistory} onCopy={copyHistoryText} />
+        <OllamaPanel compact />
         <CachePanel call={call} />
         {probeError ? <p className="error">{probeError}</p> : null}
         {probe ? (
@@ -227,6 +308,64 @@ function ResultCard({ title, rows }: { title: string; rows: Array<[string, unkno
         </p>
       ))}
     </article>
+  );
+}
+
+function historyEntryFromNotification(notification: SidecarNotification): DictationHistoryEntry | null {
+  const match = /^dictation\.(silent|audio|fused)\.utterance$/.exec(notification.method);
+  if (!match || !isObject(notification.params)) {
+    return null;
+  }
+  const payload = notification.params as DictationUtterancePayload;
+  const pipeline = (payload.pipeline ?? match[1]) as DictationPipeline;
+  const utteranceId = typeof payload.utterance_id === "number" ? payload.utterance_id : undefined;
+  const id = `${pipeline}-${utteranceId ?? Date.now()}-${payload.ended_at_ns ?? ""}`;
+  const textRaw = typeof payload.text_raw === "string" ? payload.text_raw : "";
+  const textFinal = typeof payload.text_final === "string" ? payload.text_final : "";
+  const decision = typeof payload.decision === "string" ? payload.decision : undefined;
+
+  return {
+    id,
+    createdAt: new Date().toISOString(),
+    pipeline,
+    utteranceId,
+    textRaw,
+    textFinal,
+    confidence: typeof payload.confidence === "number" ? payload.confidence : undefined,
+    decision,
+    status: statusFromDecision(decision, payload.error),
+    error: payload.error ?? null,
+    payload
+  };
+}
+
+function statusFromDecision(
+  decision: string | undefined,
+  error: string | null | undefined
+): DictationHistoryEntry["status"] {
+  if (error || decision === "error") {
+    return "error";
+  }
+  if (decision === "dry_run") {
+    return "dry_run";
+  }
+  if (decision?.startsWith("withheld")) {
+    return "withheld";
+  }
+  return "accepted";
+}
+
+function isObject(value: JsonValue | undefined): value is Record<string, JsonValue> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isHistoryEntry(value: unknown): value is DictationHistoryEntry {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as DictationHistoryEntry).id === "string" &&
+    typeof (value as DictationHistoryEntry).createdAt === "string" &&
+    typeof (value as DictationHistoryEntry).textFinal === "string"
   );
 }
 

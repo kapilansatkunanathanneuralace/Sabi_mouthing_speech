@@ -54,6 +54,9 @@ The installer is written to `desktop/dist/Sabi-<version>-setup.exe`. Run it from
 Explorer or PowerShell, keep the default per-user install, then launch Sabi from the
 finish page, Start Menu, or desktop shortcut. Model weights are not bundled; the app
 downloads them into `%LOCALAPPDATA%\Sabi\models` during onboarding.
+The installer is a bootstrap app: real silent/audio/fused dictation also requires the
+full CPU runtime pack, downloaded and activated from the desktop onboarding/runtime
+panel after install.
 
 For local signed smoke builds, create a developer-only self-signed certificate:
 
@@ -71,6 +74,16 @@ npm run validate:win-package
 Self-signed installers are only for local validation. Public releases still require a
 trusted OV/EV certificate or Azure Trusted Signing; see
 [`docs/distribution_packaging/SIGNING_WINDOWS.md`](docs/distribution_packaging/SIGNING_WINDOWS.md).
+
+To produce the full dictation runtime artifact for distribution, build from a
+CPU-only Python environment:
+
+```powershell
+python scripts\build_sidecar_full_cpu.py
+```
+
+Publish the generated runtime zip and update `configs/runtime/full-cpu.json` with its
+URL, SHA256, and size before asking users to install the full runtime.
 
 ## Quick start (Windows, PowerShell)
 

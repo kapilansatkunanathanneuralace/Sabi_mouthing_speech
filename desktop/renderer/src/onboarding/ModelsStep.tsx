@@ -1,9 +1,18 @@
 import { useState } from "react";
 
+import { RuntimePanel } from "../RuntimePanel";
+import { runtimeReady } from "../runtimeStatus";
 import { nextStep } from "./steps";
 import type { ModelsStepProps } from "./types";
 
-export function ModelsStep({ callModelDownload, goTo, notifications, platform }: ModelsStepProps) {
+export function ModelsStep({
+  callModelDownload,
+  goTo,
+  notifications,
+  platform,
+  runtime,
+  setRuntime
+}: ModelsStepProps) {
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +47,11 @@ export function ModelsStep({ callModelDownload, goTo, notifications, platform }:
   return (
     <div className="wizard-step">
       <h2>Download visual speech models</h2>
-      <p>Sabi downloads model assets locally and the Python sidecar verifies hashes.</p>
+      <p>
+        Sabi downloads model assets locally and installs a full CPU runtime before enabling
+        real dictation.
+      </p>
+      <RuntimePanel onChange={setRuntime} runtime={runtime} />
       <div className="progress-shell">
         <div className="progress-bar" style={{ width: `${Math.min(percent, 100)}%` }} />
       </div>
@@ -48,7 +61,11 @@ export function ModelsStep({ callModelDownload, goTo, notifications, platform }:
         <button type="button" onClick={() => void download()} disabled={running}>
           {running ? "Downloading..." : "Download models"}
         </button>
-        <button type="button" disabled={!done} onClick={() => void goTo(nextStep("models", platform))}>
+        <button
+          type="button"
+          disabled={!done || !runtimeReady(runtime)}
+          onClick={() => void goTo(nextStep("models", platform))}
+        >
           Next
         </button>
       </div>

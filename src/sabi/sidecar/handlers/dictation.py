@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import asdict, is_dataclass
 from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from sabi.input.hotkey import TriggerEvent
 from sabi.sidecar.dispatcher import Notify, SidecarDispatcher
 
 PipelineKind = Literal["silent", "audio", "fused"]
@@ -27,49 +29,130 @@ class DictationSessionManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._ready: threading.Event | None = None
         self._stop: threading.Event | None = None
         self._kind: PipelineKind | None = None
+        self._pipeline: Any | None = None
+        self._active_trigger: TriggerEvent | None = None
+        self._next_trigger_id = 1
         self._last_status: dict[str, Any] | None = None
 
     def start(self, kind: PipelineKind, params: dict[str, Any], notify: Notify) -> dict[str, Any]:
+        dry_run = bool(params.get("dry_run", True))
+        old_thread: threading.Thread | None = None
         with self._lock:
-            if self._thread is not None and self._thread.is_alive():
-                raise ValueError(f"dictation session already running: {self._kind}")
-            dry_run = bool(params.get("dry_run", True))
-            stop = threading.Event()
-            thread = threading.Thread(
-                target=self._run,
-                args=(kind, dry_run, stop, notify),
-                name=f"sabi-sidecar-{kind}",
-                daemon=True,
-            )
-            self._thread = thread
-            self._stop = stop
-            self._kind = kind
-            self._last_status = {"pipeline": kind, "mode": "starting"}
-            thread.start()
-        notify(f"dictation.{kind}.status", {"pipeline": kind, "mode": "starting"})
-        return {"pipeline": kind, "running": True, "dry_run": dry_run}
+            if self._thread is not None and self._thread.is_alive() and self._kind != kind:
+                old_thread = self._stop_session_locked()
+            if self._thread is None or not self._thread.is_alive():
+                ready = threading.Event()
+                stop = threading.Event()
+                thread = threading.Thread(
+                    target=self._run,
+                    args=(kind, dry_run, ready, stop, notify),
+                    name=f"sabi-sidecar-{kind}",
+                    daemon=True,
+                )
+                self._thread = thread
+                self._ready = ready
+                self._stop = stop
+                self._kind = kind
+                self._last_status = {"pipeline": kind, "mode": "starting"}
+                thread.start()
+                notify(f"dictation.{kind}.status", {"pipeline": kind, "mode": "starting"})
+            else:
+                ready = self._ready
+
+        if old_thread is not None:
+            old_thread.join(timeout=3.0)
+        if ready is None or not ready.wait(timeout=60.0):
+            raise TimeoutError(f"dictation {kind} pipeline did not become ready")
+        self._trigger_start(kind)
+        return {"pipeline": kind, "running": True, "capturing": True, "dry_run": dry_run}
 
     def stop(self, kind: PipelineKind, _params: dict[str, Any], notify: Notify) -> dict[str, Any]:
+        stopped_capture = self._trigger_stop(kind)
+        notify(
+            f"dictation.{kind}.status",
+            {"pipeline": kind, "mode": "stopped" if stopped_capture else "idle"},
+        )
+        return {"pipeline": kind, "running": self._is_running(kind), "capturing": False}
+
+    def shutdown(self, kind: PipelineKind, _params: dict[str, Any], notify: Notify) -> dict[str, Any]:
         with self._lock:
             if self._thread is None or self._stop is None or self._kind != kind:
                 return {"pipeline": kind, "running": False}
-            thread = self._thread
-            self._stop.set()
+            thread = self._stop_session_locked()
         thread.join(timeout=3.0)
         running = thread.is_alive()
         if not running:
             with self._lock:
-                self._thread = None
-                self._stop = None
-                self._kind = None
                 self._last_status = {"pipeline": kind, "mode": "idle"}
         notify(
             f"dictation.{kind}.status",
             {"pipeline": kind, "mode": "stopped", "running": running},
         )
         return {"pipeline": kind, "running": running}
+
+    def _stop_session_locked(self) -> threading.Thread:
+        thread = self._thread
+        if self._stop is not None:
+            self._stop.set()
+        self._thread = None
+        self._ready = None
+        self._stop = None
+        self._kind = None
+        self._pipeline = None
+        self._active_trigger = None
+        if thread is None:
+            raise RuntimeError("dictation session was not running")
+        return thread
+
+    def _is_running(self, kind: PipelineKind) -> bool:
+        with self._lock:
+            return (
+                self._thread is not None
+                and self._thread.is_alive()
+                and (self._kind == kind or kind == self._kind)
+            )
+
+    def _trigger_start(self, kind: PipelineKind) -> None:
+        with self._lock:
+            pipeline = self._pipeline
+            if pipeline is None or self._kind != kind:
+                raise ValueError(f"dictation pipeline is not ready: {kind}")
+            if self._active_trigger is not None:
+                return
+            event = TriggerEvent(
+                trigger_id=self._next_trigger_id,
+                mode="push_to_talk",
+                started_at_ns=time.monotonic_ns(),
+                reason="cli",
+            )
+            self._next_trigger_id += 1
+            self._active_trigger = event
+        try:
+            pipeline.on_trigger_start(event)
+        except Exception:
+            with self._lock:
+                if self._active_trigger == event:
+                    self._active_trigger = None
+            raise
+
+    def _trigger_stop(self, kind: PipelineKind) -> bool:
+        with self._lock:
+            pipeline = self._pipeline
+            event = self._active_trigger
+            self._active_trigger = None
+            if pipeline is None or self._kind != kind or event is None:
+                return False
+            stop_event = TriggerEvent(
+                trigger_id=event.trigger_id,
+                mode=event.mode,
+                started_at_ns=event.started_at_ns,
+                reason="cli",
+            )
+        pipeline.on_trigger_stop(stop_event)
+        return True
 
     def status(
         self,
@@ -98,9 +181,11 @@ class DictationSessionManager:
         self,
         kind: PipelineKind,
         dry_run: bool,
+        ready: threading.Event,
         stop: threading.Event,
         notify: Notify,
     ) -> None:
+        pipeline: Any | None = None
         try:
             pipeline = self._make_pipeline(kind, dry_run)
 
@@ -115,11 +200,19 @@ class DictationSessionManager:
             pipeline.subscribe_status(_status)
             pipeline.subscribe(_final)
             with pipeline:
+                with self._lock:
+                    self._pipeline = pipeline
+                ready.set()
                 while not stop.wait(timeout=0.5):
                     pass
         except Exception as exc:  # noqa: BLE001 - keep sidecar process alive
             notify(f"dictation.{kind}.error", {"pipeline": kind, "error": str(exc)})
         finally:
+            with self._lock:
+                if self._pipeline is pipeline:
+                    self._pipeline = None
+                self._active_trigger = None
+            ready.set()
             notify(f"dictation.{kind}.status", {"pipeline": kind, "mode": "idle"})
 
     def _make_pipeline(self, kind: PipelineKind, dry_run: bool) -> Any:
@@ -153,6 +246,10 @@ def register_dictation_handlers(
         dispatcher.register(
             f"dictation.{kind}.stop",
             lambda params, notify, pipeline=kind: manager.stop(pipeline, params, notify),
+        )
+        dispatcher.register(
+            f"dictation.{kind}.shutdown",
+            lambda params, notify, pipeline=kind: manager.shutdown(pipeline, params, notify),
         )
         dispatcher.register(
             f"dictation.{kind}.status",

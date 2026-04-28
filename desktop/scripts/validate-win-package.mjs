@@ -15,6 +15,7 @@ const sidecarExe = join(
   "sabi-sidecar",
   "sabi-sidecar.exe"
 );
+const runtimeManifest = join(unpackedRoot, "resources", "runtime", "full-cpu.json");
 
 if (!existsSync(distRoot)) {
   fail(`Missing dist output: ${distRoot}`);
@@ -43,6 +44,9 @@ if (embeddedArchive) {
 if (!existsSync(sidecarExe)) {
   fail(`Packaged sidecar was not found: ${sidecarExe}`);
 }
+if (!existsSync(runtimeManifest)) {
+  fail(`Runtime pack manifest was not found: ${runtimeManifest}`);
+}
 
 const request = '{"jsonrpc":"2.0","id":1,"method":"meta.version"}\n';
 const smoke = spawnSync(sidecarExe, {
@@ -68,6 +72,7 @@ if (expectSigned && signature.status !== "Valid") {
 
 console.log(`Installer: ${installers.join(", ")}`);
 console.log("Packaged sidecar meta.version smoke passed.");
+console.log("Runtime pack manifest is present.");
 console.log(`Installer signature: ${signature.status} - ${signature.statusMessage}`);
 
 function fail(message) {

@@ -43,6 +43,8 @@ The implementation work is tracked in `tickets/distribution_packaging/`:
 - Keep the existing `python -m sabi ...` CLI working for development and debugging.
 - Do not bundle large model weights in installers; download and hash-verify them on
   first launch into an app-owned cache.
+- Do not bundle the full ML runtime in the bootstrap installer; download and
+  hash-verify the full CPU runtime pack before enabling dictation.
 - Let Electron own packaged-app global shortcuts, tray behavior, update checks, and
   sidecar lifecycle.
 - Let the Python sidecar own ML pipelines, model/cache operations, and structured
@@ -63,7 +65,10 @@ Microphone, Accessibility/Input, Models, Optional setup, and Done.
 - Camera and microphone steps use `probe.run` instead of self-reporting.
 - Model setup calls `cache.download`; the Python sidecar owns manifest and hash
   verification while the renderer displays forwarded progress notifications.
-- Optional Ollama and virtual microphone setup is linked, not auto-installed.
+- Optional Ollama setup is guided but external: the app detects the local
+  runtime/model, opens the official Ollama installer page only after consent,
+  and offers a second consent-gated `ollama pull` for the configured cleanup
+  model. Virtual microphone setup remains linked, not auto-installed.
 
 Screenshots should be captured during desktop QA once the visual copy stabilizes.
 

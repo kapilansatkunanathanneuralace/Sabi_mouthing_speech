@@ -4,14 +4,27 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import io
 import os
 import platform
 import sys
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
-import cv2
 from rich.console import Console
 from rich.table import Table
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    """Structured probe output for sidecar callers."""
+
+    runtime: dict[str, str]
+    imports: list[dict[str, object]]
+    torch: dict[str, object]
+    webcam: dict[str, object]
+    audio: dict[str, object]
+    failures: int
 
 
 def _try_import(name: str, import_fn: Callable[[], None]) -> tuple[str, bool, str]:
@@ -135,6 +148,8 @@ def _print_torch(console: Console) -> None:
 
 
 def _probe_webcam(console: Console, camera_index: int = 0) -> bool:
+    import cv2
+
     cap = None
     try:
         if sys.platform == "win32":
@@ -202,6 +217,61 @@ def _probe_audio(console: Console) -> bool:
             "allow desktop apps.",
         )
         return False
+
+
+def collect_probe_results(*, camera_index: int = 0) -> dict[str, object]:
+    """Return probe results as structured data without writing to stdout."""
+
+    failures = 0
+    import_rows = _import_matrix_rows()
+    imports = [
+        {"module": name, "ok": ok, "detail": detail}
+        for name, ok, detail in import_rows
+    ]
+    if not all(bool(row["ok"]) for row in imports):
+        failures += 1
+
+    torch_result: dict[str, object]
+    try:
+        import torch
+
+        cuda_ok = bool(torch.cuda.is_available())
+        torch_result = {"ok": True, "version": torch.__version__, "cuda_available": cuda_ok}
+        if cuda_ok:
+            torch_result["device"] = torch.cuda.get_device_name(0)
+    except Exception as exc:  # noqa: BLE001 - probe must not crash
+        torch_result = {"ok": False, "error": str(exc)}
+        failures += 1
+
+    record = Console(file=io.StringIO(), record=True, width=120)
+    webcam_ok = _probe_webcam(record, camera_index=camera_index)
+    if not webcam_ok:
+        failures += 1
+    webcam = {
+        "ok": webcam_ok,
+        "camera_index": camera_index,
+        "output": record.export_text(clear=True).strip(),
+    }
+
+    audio_ok = _probe_audio(record)
+    if not audio_ok:
+        failures += 1
+    audio = {"ok": audio_ok, "output": record.export_text(clear=True).strip()}
+
+    result = ProbeResult(
+        runtime={
+            "python": sys.version.split()[0],
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "cpu_count": str(os.cpu_count() or "?"),
+        },
+        imports=imports,
+        torch=torch_result,
+        webcam=webcam,
+        audio=audio,
+        failures=failures,
+    )
+    return asdict(result)
 
 
 def _print_import_table(console: Console, rows: list[tuple[str, bool, str]]) -> bool:

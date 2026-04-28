@@ -8,50 +8,20 @@ can delegate without poking at ``scripts/`` at runtime (``scripts/`` is not on
 from __future__ import annotations
 
 import argparse
-import hashlib
 import logging
-import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - py<3.11 fallback
-    import tomli as tomllib  # type: ignore[import-not-found]
+from sabi.runtime.asset_cache import AssetCache, AssetManifest
+from sabi.runtime.paths import models_dir, vsr_manifest_path
 
 logger = logging.getLogger(__name__)
 
-# Repo root = parents[4]: download.py -> vsr -> models -> sabi -> src -> <root>.
-REPO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_MANIFEST = REPO_ROOT / "configs" / "vsr_weights.toml"
-DEFAULT_DEST_ROOT = REPO_ROOT / "data" / "models" / "vsr"
-CHUNK = 1 << 20  # 1 MiB
+DEFAULT_MANIFEST = vsr_manifest_path()
+DEFAULT_DEST_ROOT = models_dir() / "vsr"
 
 
-def _load_manifest(path: Path) -> dict[str, Any]:
-    with path.open("rb") as f:
-        return tomllib.load(f)
-
-
-def _sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(CHUNK), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _download(url: str, dest: Path) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    logger.info("downloading %s -> %s", url, dest)
-    with urllib.request.urlopen(url) as resp, tmp.open("wb") as out:
-        while True:
-            chunk = resp.read(CHUNK)
-            if not chunk:
-                break
-            out.write(chunk)
-    tmp.replace(dest)
+ProgressCallback = Callable[[dict[str, Any]], None]
 
 
 def download_all(
@@ -59,6 +29,7 @@ def download_all(
     dest_root: Path = DEFAULT_DEST_ROOT,
     force: bool = False,
     print_hashes: bool = False,
+    progress: ProgressCallback | None = None,
 ) -> int:
     """Download every file listed under ``[[files]]``.
 
@@ -67,59 +38,26 @@ def download_all(
     if not manifest_path.is_file():
         logger.error("manifest not found: %s", manifest_path)
         return 2
-    manifest = _load_manifest(manifest_path)
-    files = manifest.get("files", [])
-    if not files:
-        logger.error("manifest %s has no [[files]] entries", manifest_path)
+    try:
+        manifest = AssetManifest.load(manifest_path).model_copy(update={"name": dest_root.name})
+    except Exception as exc:  # noqa: BLE001 - CLI reports validation failures as exit code
+        logger.error("manifest %s is invalid: %s", manifest_path, exc)
         return 2
 
-    exit_code = 0
-    computed: dict[str, str] = {}
-    for entry in files:
-        name = entry.get("name") or entry.get("relative_path", "?")
-        url = entry["url"]
-        rel = Path(entry["relative_path"])
-        expected = (entry.get("sha256") or "").strip().lower()
-        dest = dest_root / rel
-
-        if dest.exists() and not force:
-            logger.info("[%s] already present: %s", name, dest)
-        else:
-            if dest.exists() and force:
-                logger.info("[%s] --force: overwriting %s", name, dest)
-            try:
-                _download(url, dest)
-            except Exception as exc:  # noqa: BLE001 - report and continue
-                logger.error("[%s] download failed: %s", name, exc)
-                exit_code = 1
-                continue
-
-        digest = _sha256_file(dest)
-        computed[name] = digest
-        if expected:
-            if digest != expected:
-                logger.error(
-                    "[%s] sha256 mismatch: expected %s got %s",
-                    name,
-                    expected,
-                    digest,
-                )
-                exit_code = 1
-            else:
-                logger.info("[%s] sha256 ok", name)
-        else:
-            logger.warning(
-                "[%s] no sha256 pinned in manifest; computed %s",
-                name,
-                digest,
-            )
+    cache = AssetCache(app_home=dest_root.parent)
+    try:
+        status = cache.ensure_manifest(manifest, force=force, progress=progress, migrate=False)
+    except Exception as exc:  # noqa: BLE001 - report and keep CLI exit-code contract
+        logger.error("download failed: %s", exc)
+        return 1
 
     if print_hashes:
         print("\n# Paste these sha256 values into configs/vsr_weights.toml:")
-        for name, digest in computed.items():
-            print(f'{name} = "{digest}"')
+        for entry in status["entries"]:
+            if entry.get("sha256"):
+                print(f'{entry["name"]} = "{entry["sha256"]}"')
 
-    return exit_code
+    return 0 if status["status"] == "present" else 1
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

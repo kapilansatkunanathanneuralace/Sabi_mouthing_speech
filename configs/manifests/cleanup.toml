@@ -1,0 +1,9 @@
+[manifest]
+name = "cleanup"
+kind = "cleanup"
+description = "External Ollama cleanup model metadata. Sabi does not download Ollama models."
+
+[[files]]
+name = "ollama_llama3_1"
+kind = "cleanup"
+relative_path = "ollama/llama3.1"

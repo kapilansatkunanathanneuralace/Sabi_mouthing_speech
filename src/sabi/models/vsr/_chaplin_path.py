@@ -11,8 +11,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-CHAPLIN_ROOT = REPO_ROOT / "third_party" / "chaplin"
+from sabi.runtime.paths import chaplin_dir
+
+CHAPLIN_ROOT = chaplin_dir()
 DEFAULT_INI = CHAPLIN_ROOT / "configs" / "LRS3_V_WER19.1.ini"
 
 

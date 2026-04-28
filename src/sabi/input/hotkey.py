@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import queue
 import threading
 import time
@@ -31,10 +32,11 @@ from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
+from sabi.runtime.paths import configs_dir
+
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "hotkey.toml"
+DEFAULT_CONFIG_PATH = configs_dir() / "hotkey.toml"
 
 Mode = Literal["push_to_talk", "toggle"]
 Reason = Literal["hotkey", "cli"]
@@ -270,6 +272,9 @@ class HotkeyController:
             if self._started:
                 return self
             self._started = True
+        if os.environ.get("SABI_SIDECAR_NO_HOTKEY") == "1":
+            logger.info("hotkey controller disabled by SABI_SIDECAR_NO_HOTKEY")
+            return self
         if self.config.mode == "push_to_talk":
             self._install_ptt_hooks()
         else:

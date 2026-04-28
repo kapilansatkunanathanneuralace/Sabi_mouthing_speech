@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from sabi.eval.harness import EvalPhrase, load_video_frames, load_wav_utterance
+from sabi.runtime.paths import data_dir
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_OUT_DIR = REPO_ROOT / "data" / "eval" / "fused"
-DEFAULT_PHRASES_PATH = REPO_ROOT / "data" / "eval" / "phrases.sample.jsonl"
+DEFAULT_OUT_DIR = data_dir() / "eval" / "fused"
+DEFAULT_PHRASES_PATH = data_dir() / "eval" / "phrases.sample.jsonl"
 
 TakeStatus = Literal["recorded", "skipped", "planned", "failed"]
 RESET_MEDIA_SUFFIXES = {".mp4", ".wav"}

@@ -28,12 +28,12 @@ from sabi.models.vsr.model import VSRModel, VSRModelConfig, VSRResult
 from sabi.output.inject import InjectConfig, InjectResult
 from sabi.output.inject import paste_text as _real_paste_text
 from sabi.pipelines.events import PipelinePhase, PipelineStatusEvent, UiMode, normalize_ui_mode
+from sabi.runtime.paths import configs_dir, reports_dir
 
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "fused_dictate.toml"
-DEFAULT_JSONL_DIR = REPO_ROOT / "reports"
+DEFAULT_CONFIG_PATH = configs_dir() / "fused_dictate.toml"
+DEFAULT_JSONL_DIR = reports_dir()
 
 PasteDecision = Literal[
     "pasted",

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-LATENCY_LOG = REPO_ROOT / "reports" / "latency-log.md"
+from sabi.runtime.paths import reports_dir
+
+LATENCY_LOG = reports_dir() / "latency-log.md"
 
 _HEADER = (
     "# Latency log\n\n"

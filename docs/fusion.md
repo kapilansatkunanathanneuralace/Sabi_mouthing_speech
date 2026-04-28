@@ -32,6 +32,7 @@ Defaults live in `configs/fusion.toml`.
 | `tie_epsilon` | `0.02` | Treat smaller confidence deltas as ties. |
 | `tie_breaker` | `"asr"` | Source used for true confidence ties. |
 | `min_alignment_ratio` | `0.5` | If transcripts barely align, return one source verbatim instead of stitching. |
+| `low_alignment_fallback` | `"higher_confidence"` | TICKET-038 knob for the low-alignment verbatim branch. `"higher_confidence"` keeps today's pick; `"audio_primary"` / `"vsr_primary"` force that side. Only applies when `mode = "auto"`. |
 
 ## Mode Resolution
 
@@ -56,7 +57,7 @@ If one source is empty, mode resolution is skipped:
 | Field | Meaning |
 | --- | --- |
 | `text` | Final fused transcript. |
-| `confidence` | Mean confidence of emitted words, clamped to `[0, 1]`. |
+| `confidence` | Calibrated fused confidence, clamped to `[0, 1]`. |
 | `source_weights` | Share of emitted words from ASR and VSR. `both` counts half toward each. |
 | `per_word_origin` | One entry per output word: `"asr"`, `"vsr"`, or `"both"`. |
 | `per_word_confidence` | Confidence used for each output word. |
@@ -70,7 +71,32 @@ The combiner tokenizes on whitespace, normalizes tokens to lowercase for alignme
 
 When aligned words match case-insensitively, origin is `both` and the output uses the primary source surface form. When they disagree, the higher per-word confidence wins. If confidence is tied within `tie_epsilon`, the primary source or `tie_breaker` wins. Unaligned insertions are kept only from the primary source.
 
-If the matched alignment ratio is below `min_alignment_ratio`, the combiner returns the higher-confidence source verbatim. This avoids unstable mixed sentences when ASR and VSR disagree wildly.
+If the matched alignment ratio is below `min_alignment_ratio`, the combiner returns one source verbatim instead of stitching. This avoids unstable mixed sentences when ASR and VSR disagree wildly.
+
+In `mode = "auto"`, the low-alignment branch consults `low_alignment_fallback`:
+
+- `"higher_confidence"` (default): keep today's behavior - return the side with the higher overall confidence verbatim, with `mode_reason = "alignment_below_threshold"`.
+- `"audio_primary"`: always return ASR verbatim, with `mode_reason = "alignment_below_threshold:audio_primary_fallback"`.
+- `"vsr_primary"`: always return VSR verbatim, with `mode_reason = "alignment_below_threshold:vsr_primary_fallback"`.
+
+Explicit `mode = "audio_primary"` and `mode = "vsr_primary"` ignore `low_alignment_fallback` entirely and keep the historical higher-confidence pick on low alignment so forced modes stay predictable. The knob is intentionally scoped to this single low-alignment branch - it is **not** a global mode override. Use the `mode` field if you need to force a side everywhere.
+
+## Confidence Calibration
+
+`FusedResult.confidence` is intentionally more conservative than the raw model
+confidence. The live fused pipeline uses this value for paste gating, so it
+should be honest about disagreement.
+
+Rules:
+
+- Full ASR/VSR agreement keeps the emitted word confidence.
+- Partial disagreement lowers confidence based on how many output words came from `both`.
+- Low alignment lowers confidence further before returning one source verbatim.
+- Missing ASR or missing VSR is capped at `0.85`, even if the surviving model reports `1.0`.
+- A `1.00` fused confidence should only happen when both modalities agree and the underlying confidences support it.
+
+The original per-word model scores are still exposed as `per_word_confidence`;
+the final `confidence` is the calibrated score used by downstream decisions.
 
 ## Worked Example
 

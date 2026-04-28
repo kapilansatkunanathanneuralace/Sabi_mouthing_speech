@@ -110,6 +110,29 @@ Good answer:
 
 > "The eval harness is our scoreboard. It replays fixed clips so we can compare changes without relying on memory or one lucky demo."
 
+## Personal Fused Eval Is Not Training
+
+The fused eval dataset under `data/eval/fused` is a personal benchmark dataset. It
+contains your webcam video and microphone audio for the same phrase list, and it
+lets the fused pipeline measure how well ASR, VSR, fusion, and cleanup work for
+your setup.
+
+Command:
+
+```powershell
+python -m sabi fused-eval-check --dataset data/eval/fused
+python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 1 --out reports/poc-eval-fused-personal.md
+```
+
+This does **not** fine-tune Chaplin, Whisper, the fusion combiner, or the cleanup
+prompt. No model changes automatically after collection. If the report shows a
+problem, the next step is manual tuning: improve capture conditions, adjust
+fusion thresholds, compare cleanup prompts, or open a future fine-tuning ticket.
+
+Good answer:
+
+> "The personal fused dataset is our measuring stick, not a training set. It tells us what fails for this user and environment. The current PoC does not learn from it automatically."
+
 ## Important Files To Know
 
 | Path | What it is |

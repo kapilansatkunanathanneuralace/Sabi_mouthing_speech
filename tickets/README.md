@@ -54,15 +54,28 @@ Demo operators should start with [`../docs/DEMO.md`](../docs/DEMO.md). For a non
 | [TICKET-016](TICKET-016-fusion-module.md) | Audio-visual fusion module | Fusion | M | 005, 007 |
 | [TICKET-017](TICKET-017-fused-dictation-pipeline.md) | Fused dictation pipeline (PoC-3) | Pipeline | L | 016, 005, 007, 008, 009, 010, 011, 012 |
 | [TICKET-018](TICKET-018-cleanup-polish-prompt-v2.md) | LLM cleanup polish (prompt v2 + eval A/B) | Cleanup | M | 008, 014 |
-| [TICKET-019](TICKET-019-virtual-mic-install.md) | Virtual mic install integration (VB-Cable) | Infra | S | 002 |
-| [TICKET-020](TICKET-020-kokoro-tts-wrapper.md) | Kokoro TTS wrapper (RealtimeTTS streaming) | Output | L | 002 |
-| [TICKET-021](TICKET-021-virtual-mic-sink.md) | Virtual mic audio sink routing | Output | M | 019, 020 |
-| [TICKET-022](TICKET-022-meeting-register-cleanup.md) | Meeting-register cleanup prompt | Cleanup | S | 008 |
-| [TICKET-023](TICKET-023-foreground-app-detection.md) | Foreground app detection | Orchestration | S | 002 |
-| [TICKET-024](TICKET-024-mode-switcher.md) | Mode switcher / orchestrator | Orchestration | M | 010, 023 |
-| [TICKET-025](TICKET-025-silent-meeting-pipeline.md) | Silent-meeting pipeline (PoC-4) | Pipeline | L | 005, 021, 022, 024 |
-| [TICKET-026](TICKET-026-meeting-mute-toggle.md) | Meeting mute / unmute instant toggle | Orchestration | S | 021, 025 |
-| [TICKET-027](TICKET-027-meeting-demo-eval.md) | Meeting demo runbook + listening-test eval | Eval | M | 015, 025, 026 |
+| [TICKET-019](TICKET-019-fused-eval-dataset-collection.md) | Fused eval dataset collection tool | Eval | M | 014, 017 |
+| [TICKET-020](TICKET-020-personal-fused-eval-runbook.md) | Personal fused eval runbook + baseline | Eval | S | 017, 019 |
+| [TICKET-021](TICKET-021-virtual-mic-install.md) | Virtual mic install integration (VB-Cable) | Infra | S | 002 |
+| [TICKET-022](TICKET-022-kokoro-tts-wrapper.md) | Kokoro TTS wrapper (RealtimeTTS streaming) | Output | L | 002 |
+| [TICKET-023](TICKET-023-virtual-mic-sink.md) | Virtual mic audio sink routing | Output | M | 021, 022 |
+| [TICKET-024](TICKET-024-meeting-register-cleanup.md) | Meeting-register cleanup prompt | Cleanup | S | 008, 018 |
+| [TICKET-025](TICKET-025-foreground-app-detection.md) | Foreground app detection | Orchestration | S | 002 |
+| [TICKET-026](TICKET-026-mode-switcher.md) | Mode switcher / orchestrator | Orchestration | M | 010, 025 |
+| [TICKET-027](TICKET-027-silent-meeting-pipeline.md) | Silent-meeting pipeline (PoC-4) | Pipeline | L | 005, 023, 024, 026 |
+| [TICKET-028](TICKET-028-meeting-mute-toggle.md) | Meeting mute / unmute instant toggle | Orchestration | S | 023, 027 |
+| [TICKET-029](TICKET-029-meeting-demo-eval.md) | Meeting demo runbook + listening-test eval | Eval | M | 015, 027, 028 |
+| [TICKET-030](TICKET-030-fused-eval-report-diagnostics.md) | Fused eval report diagnostics | Eval | M | 017, 020 |
+| [TICKET-031](TICKET-031-eval-driven-fused-tuning-recommendations.md) | Eval-driven fused tuning recommendations | Eval | M | 020, 030 |
+| [TICKET-032](TICKET-032-fused-confidence-calibration.md) | Fused confidence calibration | Fusion | M | 016, 017, 020, 030 |
+| [TICKET-033](TICKET-033-personal-vsr-finetuning-research.md) | Personal VSR fine-tuning research spike | VSR | M | 019, 020, 030 |
+| [TICKET-034](TICKET-034-personal-adaptation-dataset-export.md) | Personal adaptation dataset export | Eval | M | 019, 020, 033 |
+| [TICKET-035](TICKET-035-cleanup-reliability-eval-timeouts.md) | Cleanup reliability for eval timeouts | Cleanup | S | 018, 020, 030 |
+| [TICKET-036](TICKET-036-calibrated-fused-eval-baseline.md) | Calibrated fused eval baseline | Eval | S | 020, 032, 035 |
+| [TICKET-037](TICKET-037-fusion-mode-ab-eval.md) | Fusion mode A/B eval | Eval | M | 016, 020, 030, 036 |
+| [TICKET-038](TICKET-038-low-alignment-asr-fallback.md) | Low-alignment ASR fallback policy | Fusion | M | 016, 032, 037 |
+| [TICKET-039](TICKET-039-expanded-personal-fused-eval-set.md) | Expanded personal fused eval set | Eval | M | 019, 020, 036 |
+| [TICKET-040](TICKET-040-fused-latency-profile-optimization.md) | Fused latency profile + optimization | Pipeline | M | 017, 030, 036 |
 
 ## Dependency graph
 
@@ -86,15 +99,28 @@ graph TD
   T016[TICKET-016 Fusion module]
   T017[TICKET-017 Fused dictation PoC-3]
   T018[TICKET-018 Cleanup polish v2]
-  T019[TICKET-019 VB-Cable install]
-  T020[TICKET-020 Kokoro TTS]
-  T021[TICKET-021 Virtual mic sink]
-  T022[TICKET-022 Meeting cleanup]
-  T023[TICKET-023 App detection]
-  T024[TICKET-024 Mode switcher]
-  T025[TICKET-025 Silent meeting PoC-4]
-  T026[TICKET-026 Meeting mute]
-  T027[TICKET-027 Meeting runbook + eval]
+  T019[TICKET-019 Fused data collection]
+  T020[TICKET-020 Personal fused eval]
+  T021[TICKET-021 VB-Cable install]
+  T022[TICKET-022 Kokoro TTS]
+  T023[TICKET-023 Virtual mic sink]
+  T024[TICKET-024 Meeting cleanup]
+  T025[TICKET-025 App detection]
+  T026[TICKET-026 Mode switcher]
+  T027[TICKET-027 Silent meeting PoC-4]
+  T028[TICKET-028 Meeting mute]
+  T029[TICKET-029 Meeting runbook + eval]
+  T030[TICKET-030 Fused diagnostics]
+  T031[TICKET-031 Tuning recommendations]
+  T032[TICKET-032 Confidence calibration]
+  T033[TICKET-033 VSR fine-tuning research]
+  T034[TICKET-034 Adaptation export]
+  T035[TICKET-035 Cleanup reliability]
+  T036[TICKET-036 Calibrated fused baseline]
+  T037[TICKET-037 Fusion mode A/B]
+  T038[TICKET-038 Low-alignment ASR fallback]
+  T039[TICKET-039 Expanded fused eval]
+  T040[TICKET-040 Fused latency]
 
   T001 --> T002
   T002 --> T003
@@ -103,9 +129,9 @@ graph TD
   T002 --> T008
   T002 --> T009
   T002 --> T010
-  T002 --> T019
-  T002 --> T020
-  T002 --> T023
+  T002 --> T021
+  T002 --> T022
+  T002 --> T025
   T003 --> T004
   T004 --> T005
   T005 --> T011
@@ -134,20 +160,58 @@ graph TD
   T012 --> T017
   T008 --> T018
   T014 --> T018
-  T019 --> T021
-  T020 --> T021
-  T008 --> T022
-  T010 --> T024
-  T023 --> T024
-  T005 --> T025
-  T021 --> T025
-  T022 --> T025
-  T024 --> T025
-  T021 --> T026
+  T014 --> T019
+  T017 --> T019
+  T017 --> T020
+  T019 --> T020
+  T021 --> T023
+  T022 --> T023
+  T008 --> T024
+  T018 --> T024
+  T010 --> T026
   T025 --> T026
-  T015 --> T027
-  T025 --> T027
+  T005 --> T027
+  T023 --> T027
+  T024 --> T027
   T026 --> T027
+  T023 --> T028
+  T027 --> T028
+  T015 --> T029
+  T027 --> T029
+  T028 --> T029
+  T017 --> T030
+  T020 --> T030
+  T020 --> T031
+  T030 --> T031
+  T016 --> T032
+  T017 --> T032
+  T020 --> T032
+  T030 --> T032
+  T019 --> T033
+  T020 --> T033
+  T030 --> T033
+  T019 --> T034
+  T020 --> T034
+  T033 --> T034
+  T018 --> T035
+  T020 --> T035
+  T030 --> T035
+  T020 --> T036
+  T032 --> T036
+  T035 --> T036
+  T016 --> T037
+  T020 --> T037
+  T030 --> T037
+  T036 --> T037
+  T016 --> T038
+  T032 --> T038
+  T037 --> T038
+  T019 --> T039
+  T020 --> T039
+  T036 --> T039
+  T017 --> T040
+  T030 --> T040
+  T036 --> T040
 ```
 
 ## Suggested burn-down order
@@ -165,14 +229,23 @@ Week 2 - dictation polish + Phase 2 fusion + cleanup polish (current focus):
 - **Day 8-9:** 013, 014, 015 (overlay TUI, eval harness, demo runbook). Closes Phase 1 milestone.
 - **Day 10-11:** 016, 017 (fusion module + fused dictation pipeline). Roadmap Phase 2 deliverable.
 - **Day 12:** 018 (cleanup polish v2 + eval A/B). Depends on 014; reuses the eval harness for prompt comparison.
+- **Day 13:** 019, 020 (personal fused eval dataset collection + runbook/baseline). Makes the fused pipeline measurable on your own data before meeting-mode work.
+
+Week 2.5 - personal fused diagnostics + adaptation planning:
+
+- **Day 13.5:** 030, 031, 032 (diagnose personal fused eval, turn results into recommendations, make confidence honest).
+- **Day 13.75:** 033 (research whether personal VSR fine-tuning is feasible). 034 is deferred unless a real upstream training recipe is chosen.
+- **Day 13.8:** 035, 036 (fix cleanup timeout/fallback, then rerun the calibrated fused baseline).
+- **Day 13.9:** 037, 038 (compare fusion modes, then adjust low-alignment fallback policy if the data supports it).
+- **Day 14:** 039, 040 (expand the personal eval set and profile fused latency).
 
 Week 3 - meeting mode (deferred behind fusion + polish):
 
-- **Day 13:** 019, 020 (VB-Cable install docs + Kokoro TTS).
-- **Day 14:** 021, 022, 023 (audio sink, meeting prompt, app detection).
-- **Day 15:** 024, 026 (mode switcher + mute toggle can be built in parallel).
-- **Day 16:** 025 (silent-meeting pipeline wire-up).
-- **Day 17:** 027 (meeting demo runbook + listening-test eval).
+- **Day 15:** 021, 022 (VB-Cable install docs + Kokoro TTS).
+- **Day 16:** 023, 024, 025 (audio sink, meeting prompt, app detection).
+- **Day 17:** 026, 028 (mode switcher + mute toggle can be built in parallel).
+- **Day 18:** 027 (silent-meeting pipeline wire-up).
+- **Day 19:** 029 (meeting demo runbook + listening-test eval).
 
 ## Ticket template
 

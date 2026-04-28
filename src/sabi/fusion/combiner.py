@@ -17,6 +17,7 @@ from sabi.models.vsr.model import VSRResult
 
 FusionMode = Literal["auto", "audio_primary", "vsr_primary"]
 WordOrigin = Literal["asr", "vsr", "both"]
+LowAlignmentFallback = Literal["higher_confidence", "audio_primary", "vsr_primary"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "fusion.toml"
@@ -32,6 +33,7 @@ class FusionConfig(BaseModel):
     tie_epsilon: float = Field(default=0.02, ge=0.0, le=1.0)
     tie_breaker: Literal["asr", "vsr"] = "asr"
     min_alignment_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+    low_alignment_fallback: LowAlignmentFallback = "higher_confidence"
 
 
 @dataclass(frozen=True)
@@ -84,32 +86,38 @@ def combine(
     if not asr_stream.surface and not vsr_stream.surface:
         return _empty_result(cfg.mode, "both empty", 0.0)
     if not asr_stream.surface:
-        return _verbatim_result(vsr_stream, "vsr_primary", "asr empty", 0.0, "vsr")
+        return _verbatim_result(
+            vsr_stream,
+            "vsr_primary",
+            "asr empty",
+            0.0,
+            "vsr",
+            confidence_cap=0.85,
+        )
     if not vsr_stream.surface:
-        return _verbatim_result(asr_stream, "audio_primary", "vsr empty", 0.0, "asr")
+        return _verbatim_result(
+            asr_stream,
+            "audio_primary",
+            "vsr empty",
+            0.0,
+            "asr",
+            confidence_cap=0.85,
+        )
 
     start = time.perf_counter()
     mode_used, mode_reason = _resolve_mode(cfg, asr, vsr, asr_stream)
     alignment = _align(asr_stream.normalized, vsr_stream.normalized)
     aligned_ratio = _alignment_ratio(alignment, asr_stream.normalized, vsr_stream.normalized)
     if aligned_ratio < cfg.min_alignment_ratio:
-        if _overall_confidence(asr) >= _overall_confidence(vsr):
-            result = _verbatim_result(
-                asr_stream,
-                "audio_primary",
-                "alignment_below_threshold",
-                _elapsed_ms(start),
-                "asr",
-            )
-        else:
-            result = _verbatim_result(
-                vsr_stream,
-                "vsr_primary",
-                "alignment_below_threshold",
-                _elapsed_ms(start),
-                "vsr",
-            )
-        return result
+        return _low_alignment_pick(
+            cfg=cfg,
+            asr=asr,
+            vsr=vsr,
+            asr_stream=asr_stream,
+            vsr_stream=vsr_stream,
+            aligned_ratio=aligned_ratio,
+            start=start,
+        )
 
     words: list[str] = []
     origins: list[WordOrigin] = []
@@ -147,7 +155,7 @@ def combine(
 
     return FusedResult(
         text=" ".join(words),
-        confidence=_mean_confidence(confidences),
+        confidence=_calibrated_confidence(confidences, origins),
         source_weights=_source_weights(origins),
         per_word_origin=origins,
         per_word_confidence=[_clamp01(c) for c in confidences],
@@ -312,11 +320,15 @@ def _verbatim_result(
     mode_reason: str,
     latency_ms: float,
     source: Literal["asr", "vsr"],
+    *,
+    confidence_multiplier: float = 1.0,
+    confidence_cap: float = 1.0,
 ) -> FusedResult:
     origins: list[WordOrigin] = [source for _ in stream.surface]
+    confidence = _mean_confidence(stream.confidence) * confidence_multiplier
     return FusedResult(
         text=" ".join(stream.surface),
-        confidence=_mean_confidence(stream.confidence),
+        confidence=min(_clamp01(confidence), confidence_cap),
         source_weights=_source_weights(origins),
         per_word_origin=origins,
         per_word_confidence=[_clamp01(c) for c in stream.confidence],
@@ -343,6 +355,82 @@ def _mean_confidence(values: list[float]) -> float:
     if not values:
         return 0.0
     return _clamp01(sum(values) / len(values))
+
+
+def _calibrated_confidence(values: list[float], origins: list[WordOrigin]) -> float:
+    base = _mean_confidence(values)
+    if not origins:
+        return 0.0
+    agreement_ratio = sum(1 for origin in origins if origin == "both") / len(origins)
+    multiplier = 0.65 + (0.35 * agreement_ratio)
+    return _clamp01(base * multiplier)
+
+
+def _low_alignment_pick(
+    *,
+    cfg: FusionConfig,
+    asr: ASRResult | None,
+    vsr: VSRResult | None,
+    asr_stream: _TokenStream,
+    vsr_stream: _TokenStream,
+    aligned_ratio: float,
+    start: float,
+) -> FusedResult:
+    """Pick verbatim ASR or VSR when transcripts barely align.
+
+    The configurable :attr:`FusionConfig.low_alignment_fallback` knob only
+    applies when ``cfg.mode == "auto"``. Explicit ``audio_primary`` /
+    ``vsr_primary`` modes keep the historical higher-confidence pick so
+    forced modes stay predictable. See TICKET-038.
+    """
+
+    if cfg.mode == "auto":
+        policy: LowAlignmentFallback = cfg.low_alignment_fallback
+    else:
+        policy = "higher_confidence"
+
+    multiplier = _low_alignment_confidence_multiplier(aligned_ratio)
+
+    if policy == "audio_primary":
+        return _verbatim_result(
+            asr_stream,
+            "audio_primary",
+            "alignment_below_threshold:audio_primary_fallback",
+            _elapsed_ms(start),
+            "asr",
+            confidence_multiplier=multiplier,
+        )
+    if policy == "vsr_primary":
+        return _verbatim_result(
+            vsr_stream,
+            "vsr_primary",
+            "alignment_below_threshold:vsr_primary_fallback",
+            _elapsed_ms(start),
+            "vsr",
+            confidence_multiplier=multiplier,
+        )
+
+    if _overall_confidence(asr) >= _overall_confidence(vsr):
+        return _verbatim_result(
+            asr_stream,
+            "audio_primary",
+            "alignment_below_threshold",
+            _elapsed_ms(start),
+            "asr",
+            confidence_multiplier=multiplier,
+        )
+    return _verbatim_result(
+        vsr_stream,
+        "vsr_primary",
+        "alignment_below_threshold",
+        _elapsed_ms(start),
+        "vsr",
+        confidence_multiplier=multiplier,
+    )
+
+
+def _low_alignment_confidence_multiplier(aligned_ratio: float) -> float:
+    return 0.45 + (0.5 * _clamp01(aligned_ratio))
 
 
 def _source_weights(origins: list[WordOrigin]) -> dict[str, float]:
@@ -377,6 +465,7 @@ __all__ = [
     "FusionCombiner",
     "FusionConfig",
     "FusionMode",
+    "LowAlignmentFallback",
     "combine",
     "load_fusion_config",
 ]

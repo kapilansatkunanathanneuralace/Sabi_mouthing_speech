@@ -4,8 +4,8 @@ A **local, multimodal PoC** that turns spoken **or** silently mouthed input into
 
 - **Silent dictation** — webcam → MediaPipe lip ROI → Chaplin / Auto-AVSR → Ollama cleanup → paste (`python -m sabi silent-dictate`).
 - **Audio dictation** — microphone + VAD → faster-whisper → Ollama cleanup → paste (`python -m sabi dictate`).
-- **Fused dictation (planned, Phase 2)** — VSR + ASR run in parallel, confidence-weighted fusion → cleanup → paste. Specified across TICKET-016 (fusion module) and TICKET-017 (fused pipeline); not implemented yet.
-- **Silent meeting (planned)** — VSR → Kokoro TTS → VB-Cable virtual mic → Zoom/Teams/Meet. Specified across TICKET-019…027; not implemented yet.
+- **Fused dictation** — VSR + ASR run in parallel, confidence-weighted fusion → cleanup → paste (`python -m sabi fused-dictate`).
+- **Silent meeting (planned)** — VSR → Kokoro TTS → VB-Cable virtual mic → Zoom/Teams/Meet. Specified across TICKET-021…029; not implemented yet.
 
 Work is tracked as numbered tickets in [`tickets/README.md`](tickets/README.md). Product vision, phases, and the fusion roadmap live in [`project_roadmap.md`](project_roadmap.md).
 
@@ -20,9 +20,11 @@ Work is tracked as numbered tickets in [`tickets/README.md`](tickets/README.md).
 | Capture + VAD + hotkey + paste + cleanup (003–010) | Done | see per-feature commands below |
 | VSR wrapper (005) | In progress — GPU WER verification pending | `python -m sabi vsr-smoke <clip.mp4>` |
 | Overlay UI, eval harness, demo runbook (013–015) | Done | `python -m sabi eval` / [`docs/DEMO.md`](docs/DEMO.md) |
-| Audio–visual fusion + fused pipeline (016–017) | Not started — roadmap Phase 2 (after 015) | — |
-| Cleanup polish v2 + eval A/B (018) | Not started — roadmap Phase 2 (after 014) | — |
-| Meeting track (019–027) | Not started — deferred behind fusion + polish | — |
+| Audio–visual fusion + fused pipeline (016–017) | Done | `python -m sabi fused-dictate` |
+| Cleanup polish v2 + eval A/B (018) | Done | `python -m sabi cleanup-smoke --prompt-version v2 "text"` |
+| Personal fused eval collection + baseline (019–020) | Done | `python -m sabi collect-fused-eval` / `python -m sabi fused-eval-check` |
+| Fused diagnostics + personalization planning (030–034) | Not started | see `tickets/README.md` |
+| Meeting track (021–029) | Not started — deferred behind fusion + polish | — |
 
 ## Quick start (Windows, PowerShell)
 
@@ -85,6 +87,31 @@ All commands are `python -m sabi <name> [--help]`.
 | `hotkey-debug` | 010 | Prints `[TRIGGER START|STOP]` for the configured chord. |
 | `silent-dictate` | 011 | Silent-dictation pipeline (VSR). |
 | `dictate` | 012 | Audio-dictation pipeline (ASR, PTT or VAD). |
+| `fused-dictate` | 017 | Fused dictation pipeline (ASR + VSR + fusion). |
+| `eval` | 014 / 017 / 018 / 020 | Offline WER/latency eval for silent, audio, and fused pipelines. |
+| `collect-fused-eval` | 019 | Guided webcam + mic capture for personal fused eval data. |
+| `fused-eval-check` | 020 | Validate fused eval media before running the eval harness. |
+| `fused-eval-reset` | 019 / 020 | Preview or delete generated fused eval media so you can restart collection. |
+
+## Common command cheat sheet
+
+Use these from the repo root with the virtual environment activated.
+
+| Command | What it does |
+|---|---|
+| `python -m sabi silent-dictate --dry-run` | Runs the silent dictation pipeline without pasting into another app. Use this to test webcam/VSR flow safely. |
+| `Ctrl+Alt+Space` | Default push-to-talk hotkey for dictation commands. Press once to start an utterance and again to stop, depending on mode. |
+| `python -m sabi lip-preview` | Opens a live camera preview with mouth/lip ROI detection so you can confirm the webcam and face tracking work. |
+| `python -m sabi dictate` | Runs the audio dictation pipeline with the microphone and pastes accepted text into the focused app. |
+| `python -m sabi dictate --ui tui --dry-run` | Runs audio dictation with the terminal status UI and no paste side effects. Good for demos/debugging. |
+| `python -m sabi silent-dictate --ui tui --dry-run` | Runs silent dictation with the terminal status UI and no paste side effects. |
+| `python -m sabi fused-dictate --ui tui --dry-run` | Runs fused dictation with ASR + VSR + fusion, showing status in the TUI without pasting. |
+| `ffmpeg -list_devices true -f dshow -i dummy` | Lists Windows DirectShow camera and microphone device names for `collect-fused-eval`. |
+| `python -m sabi fused-eval-reset --dataset data/eval/fused` | Previews which generated fused eval files would be deleted. Does not delete yet. |
+| `python -m sabi fused-eval-reset --dataset data/eval/fused --yes` | Deletes generated `data/eval/fused` media and `phrases.jsonl` so you can restart collection. |
+| `python -m sabi collect-fused-eval --camera-name "ACER FHD User Facing" --mic-name "Microphone Array (Intel® Smart Sound Technology for Digital Microphones)"` | Records synced webcam video and microphone audio for each eval phrase and writes `data/eval/fused/phrases.jsonl`. Replace the device names with the exact names from `ffmpeg`. |
+| `python -m sabi fused-eval-check --dataset data/eval/fused` | Checks that every fused eval phrase has readable video and valid 16 kHz PCM WAV audio. Run this before eval. |
+| `python -m sabi eval --dataset data/eval/fused --pipeline fused --runs 1 --out reports/poc-eval-fused-personal.md` | Runs the fused eval harness on your collected dataset and writes a personal WER/latency report. |
 
 ## Project layout
 
@@ -94,7 +121,7 @@ tests/          pytest; every module has a sibling test, no real hardware touche
 scripts/        argparse shims + debug utilities
 configs/        TOML defaults for each subsystem
 docs/           operator / dev docs (start with ONBOARDING.md)
-tickets/        27-ticket build plan + acceptance notes
+tickets/        ticket build plan + acceptance notes
 reports/        generated JSONL + latency-log.md
 third_party/    git submodules (Chaplin / Auto-AVSR)
 ```
@@ -109,6 +136,7 @@ See [`docs/ONBOARDING.md`](docs/ONBOARDING.md) for the detailed, per-folder tour
 - [`docs/INFRA_CHEAT_SHEET.md`](docs/INFRA_CHEAT_SHEET.md) — plain-English explanation of the system and common review questions.
 - [`docs/silent-dictate.md`](docs/silent-dictate.md) — PoC-1 reference (CLI, latency keys, JSONL schema).
 - [`docs/audio-dictate.md`](docs/audio-dictate.md) — PoC-2 reference (PTT vs VAD, force-paste policy).
+- [`docs/FUSED_EVAL.md`](docs/FUSED_EVAL.md) — collecting, checking, and running personal fused eval data.
 - [`docs/hotkey.md`](docs/hotkey.md), [`docs/paste-injection.md`](docs/paste-injection.md), [`docs/cleanup-prompt.md`](docs/cleanup-prompt.md), [`docs/MODELS.md`](docs/MODELS.md) — per-feature detail.
 - [`tickets/README.md`](tickets/README.md) — ticket graph, estimates, dependencies.
 - [`project_roadmap.md`](project_roadmap.md) — phases, tiers, fusion plan.

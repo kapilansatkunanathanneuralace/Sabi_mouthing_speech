@@ -5,6 +5,7 @@ from sabi.fusion.combiner import (
     FusionCombiner,
     FusionConfig,
     FusionMode,
+    LowAlignmentFallback,
     combine,
     load_fusion_config,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "FusionCombiner",
     "FusionConfig",
     "FusionMode",
+    "LowAlignmentFallback",
     "combine",
     "load_fusion_config",
 ]

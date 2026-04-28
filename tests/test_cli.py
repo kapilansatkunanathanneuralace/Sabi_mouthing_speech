@@ -26,13 +26,31 @@ def test_dictation_commands_advertise_ui_option() -> None:
 def test_eval_command_advertises_eval_options() -> None:
     runner = CliRunner()
 
-    result = runner.invoke(app, ["eval", "--help"])
+    result = runner.invoke(app, ["eval", "--help"], terminal_width=200)
 
     assert result.exit_code == 0
     assert "--dataset" in result.output
     assert "--pipeline" in result.output
     assert "--runs" in result.output
     assert "--cleanup-prompt" in result.output
+    assert "--cleanup-timeo" in result.output
+    assert "--cleanup-prefl" in result.output
+    assert "--no-cleanup-p" in result.output
+    assert "Override cleanup" in result.output
+    assert "Probe and warm" in result.output
+
+
+def test_eval_fusion_modes_advertises_options() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["eval-fusion-modes", "--help"], terminal_width=200)
+
+    assert result.exit_code == 0
+    assert "--dataset" in result.output
+    assert "--modes" in result.output
+    assert "--runs" in result.output
+    assert "--cleanup-timeout-ms" in result.output or "--cleanup-timeo" in result.output
+    assert "fusion mode" in result.output.lower()
 
 
 def test_cleanup_smoke_advertises_prompt_version() -> None:
@@ -66,3 +84,50 @@ def test_fused_dictate_advertises_ui_and_fusion_flags() -> None:
     assert "--mode" in result.output
     assert "--no-parallel" in result.output
     assert "--cleanup-prompt" in result.output
+
+
+def test_collect_fused_eval_advertises_collection_flags() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["collect-fused-eval", "--help"])
+
+    assert result.exit_code == 0
+    assert "--phrases" in result.output
+    assert "--out-dir" in result.output
+    assert "--retry" in result.output
+    assert "--skip-existing" in result.output
+    assert "--camera-name" in result.output
+    assert "--mic-name" in result.output
+    assert "--dry-run" in result.output
+
+
+def test_fused_eval_check_advertises_dataset_option() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["fused-eval-check", "--help"])
+
+    assert result.exit_code == 0
+    assert "--dataset" in result.output
+    assert "Validate a fused eval dataset" in result.output
+
+
+def test_fused_eval_reset_advertises_safety_flag() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["fused-eval-reset", "--help"])
+
+    assert result.exit_code == 0
+    assert "--dataset" in result.output
+    assert "--yes" in result.output
+    assert "Reset generated fused eval media" in result.output
+
+
+def test_fused_tuning_suggest_advertises_report_and_out() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["fused-tuning-suggest", "--help"])
+
+    assert result.exit_code == 0
+    assert "--report" in result.output
+    assert "--out" in result.output
+    assert "Suggest manual fused tuning actions" in result.output

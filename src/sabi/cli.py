@@ -977,6 +977,226 @@ def fused_dictate_cmd(
     raise typer.Exit(run_fused_dictate(cfg, ui=ui_mode))
 
 
+@app.command("collect-fused-eval")
+def collect_fused_eval_cmd(
+    out_dir: Path = typer.Option(
+        Path("data/eval/fused"),
+        "--out-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Dataset output directory. Writes phrases.jsonl plus video/ and audio/.",
+    ),
+    phrases: Path = typer.Option(
+        Path("data/eval/phrases.sample.jsonl"),
+        "--phrases",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Source phrases JSONL/JSON file, or a dataset directory containing phrases.jsonl.",
+    ),
+    limit: int = typer.Option(
+        0,
+        "--limit",
+        min=0,
+        help="Maximum number of phrases to collect. 0 = no limit.",
+    ),
+    start_at: str = typer.Option(
+        "",
+        "--start-at",
+        help="Start at a phrase id or 1-based phrase index.",
+    ),
+    phrase_id: list[str] | None = typer.Option(
+        None,
+        "--phrase-id",
+        help="Collect only this phrase id. May be passed multiple times.",
+    ),
+    retry: str = typer.Option(
+        "",
+        "--retry",
+        help="Re-record one phrase id and update its existing output row.",
+    ),
+    skip_existing: bool = typer.Option(
+        False,
+        "--skip-existing",
+        help="Validate and keep existing media instead of recording over it.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Overwrite existing media for selected phrases.",
+    ),
+    duration_s: float = typer.Option(
+        4.0,
+        "--duration-s",
+        min=0.1,
+        help="Seconds to record per phrase.",
+    ),
+    camera_name: str = typer.Option(
+        "",
+        "--camera-name",
+        help="ffmpeg dshow camera name. List with: ffmpeg -list_devices true -f dshow -i dummy",
+    ),
+    mic_name: str = typer.Option(
+        "",
+        "--mic-name",
+        help="ffmpeg dshow microphone name.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show planned paths without touching camera, microphone, media, or JSONL.",
+    ),
+) -> None:
+    """Collect paired MP4/WAV media for fused offline eval (TICKET-019)."""
+
+    from sabi.eval.collect_fused import FusedEvalCollectionConfig, collect_fused_eval
+
+    config = FusedEvalCollectionConfig(
+        out_dir=out_dir,
+        phrases_path=phrases,
+        limit=None if limit == 0 else limit,
+        start_at=start_at or None,
+        phrase_ids=tuple(phrase_id or ()),
+        retry_phrase_id=retry or None,
+        skip_existing=skip_existing,
+        overwrite=overwrite,
+        duration_s=duration_s,
+        camera_name=camera_name or None,
+        mic_name=mic_name or None,
+        dry_run=dry_run,
+    )
+
+    def _before_record(phrase, index: int, total: int) -> None:  # noqa: ANN001
+        typer.echo("")
+        typer.echo(f"[{index}/{total}] {phrase.id}: {phrase.text}")
+        typer.echo(f"Recording in 3 seconds for {duration_s:.1f} seconds...")
+        for remaining in range(3, 0, -1):
+            typer.echo(f"  {remaining}...")
+            time.sleep(1.0)
+
+    try:
+        result = collect_fused_eval(config, before_record=None if dry_run else _before_record)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(f"phrases : {result.phrases_path}")
+    typer.echo(
+        "summary : "
+        f"recorded={result.recorded} skipped={result.skipped} "
+        f"planned={result.planned} failed={result.failed}"
+    )
+    for take in result.takes:
+        suffix = f" error={take.error}" if take.error else ""
+        typer.echo(
+            f"{take.status:8} {take.phrase.id} "
+            f"video={take.video_rel} audio={take.audio_rel}{suffix}"
+        )
+    if result.failed:
+        raise typer.Exit(1)
+
+
+@app.command("fused-eval-check")
+def fused_eval_check_cmd(
+    dataset: Path = typer.Option(
+        Path("data/eval/fused"),
+        "--dataset",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Fused eval dataset directory or phrases.jsonl file to validate.",
+    ),
+) -> None:
+    """Validate a fused eval dataset before running model eval (TICKET-020)."""
+
+    from sabi.eval.fused_dataset import validate_fused_dataset
+
+    summary = validate_fused_dataset(dataset)
+    typer.echo(f"dataset       : {summary.dataset_path}")
+    typer.echo(f"phrases       : {summary.phrase_count}")
+    typer.echo(f"valid         : {summary.valid_count}")
+    typer.echo(f"missing video : {summary.missing_video_count}")
+    typer.echo(f"missing audio : {summary.missing_audio_count}")
+    typer.echo(f"invalid video : {summary.invalid_video_count}")
+    typer.echo(f"invalid audio : {summary.invalid_audio_count}")
+
+    if summary.issues:
+        typer.echo("")
+        typer.echo("Issues:")
+        for issue in summary.issues:
+            typer.echo(f"- {issue.phrase_id} {issue.field}: {issue.message}")
+        raise typer.Exit(1)
+
+    typer.echo("")
+    typer.echo("Dataset is ready for fused eval.")
+    typer.echo("Run:")
+    typer.echo(f"  {summary.recommended_eval_command}")
+
+
+@app.command("fused-eval-reset")
+def fused_eval_reset_cmd(
+    dataset: Path = typer.Option(
+        Path("data/eval/fused"),
+        "--dataset",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Fused eval dataset directory to reset.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Actually delete generated phrases.jsonl plus video/audio media.",
+    ),
+) -> None:
+    """Reset generated fused eval media so collection can start over."""
+
+    from sabi.eval.collect_fused import reset_fused_eval_dataset
+
+    result = reset_fused_eval_dataset(dataset, dry_run=not yes)
+    mode = "would delete" if result.dry_run else "deleted"
+    typer.echo(f"dataset : {result.out_dir}")
+    typer.echo(f"{mode}: {len(result.files)} file(s)")
+    for path in result.files:
+        typer.echo(f"- {path}")
+    if result.dry_run:
+        typer.echo("")
+        typer.echo("Preview only. Re-run with --yes to delete these files.")
+
+
+@app.command("fused-tuning-suggest")
+def fused_tuning_suggest_cmd(
+    report: Path = typer.Option(
+        Path("reports/poc-eval-fused-personal.md"),
+        "--report",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="TICKET-030 fused eval markdown report to analyze.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        file_okay=True,
+        dir_okay=False,
+        writable=True,
+        help="Optional markdown output path for suggestions.",
+    ),
+) -> None:
+    """Suggest manual fused tuning actions from a diagnostics report."""
+
+    from sabi.eval.fused_tuning import analyze_fused_tuning_report, write_suggestions_markdown
+
+    analysis = analyze_fused_tuning_report(report)
+    typer.echo(analysis.to_markdown())
+    if out is not None:
+        write_suggestions_markdown(analysis, out)
+        typer.echo(f"Wrote fused tuning suggestions: {out}")
+
+
 @app.command("eval")
 def eval_cmd(
     dataset: Path = typer.Option(
@@ -1001,6 +1221,17 @@ def eval_cmd(
         "--cleanup-prompt",
         help="Cleanup prompt versions: v1 or v1,v2.",
     ),
+    cleanup_timeout_ms: int | None = typer.Option(
+        None,
+        "--cleanup-timeout-ms",
+        min=1,
+        help="Override cleanup timeout for eval runs, in milliseconds.",
+    ),
+    cleanup_preflight: bool = typer.Option(
+        True,
+        "--cleanup-preflight/--no-cleanup-preflight",
+        help="Probe and warm the cleanup model before measured eval rows.",
+    ),
     out: Path | None = typer.Option(
         None,
         "--out",
@@ -1016,6 +1247,9 @@ def eval_cmd(
 
     from sabi.eval import EvalConfig, MissingEvalDependencyError, run_eval
     from sabi.eval.harness import require_eval_dependencies
+    from sabi.pipelines.audio_dictate import AudioDictateConfig
+    from sabi.pipelines.fused_dictate import FusedDictateConfig
+    from sabi.pipelines.silent_dictate import SilentDictateConfig
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -1040,6 +1274,26 @@ def eval_cmd(
             "--cleanup-prompt contains duplicate versions",
             param_hint="--cleanup-prompt",
         )
+    if cleanup_timeout_ms is not None:
+        silent_config = SilentDictateConfig(
+            cleanup=SilentDictateConfig().cleanup.model_copy(
+                update={"timeout_ms": cleanup_timeout_ms}
+            )
+        )
+        audio_config = AudioDictateConfig(
+            cleanup=AudioDictateConfig().cleanup.model_copy(
+                update={"timeout_ms": cleanup_timeout_ms}
+            )
+        )
+        fused_config = FusedDictateConfig(
+            cleanup=FusedDictateConfig().cleanup.model_copy(
+                update={"timeout_ms": cleanup_timeout_ms}
+            )
+        )
+    else:
+        silent_config = SilentDictateConfig()
+        audio_config = AudioDictateConfig()
+        fused_config = FusedDictateConfig()
     try:
         require_eval_dependencies()
     except MissingEvalDependencyError as exc:
@@ -1053,11 +1307,129 @@ def eval_cmd(
             warmups=warmups,
             pipeline=normalized,  # type: ignore[arg-type]
             cleanup_prompts=cleanup_prompts,  # type: ignore[arg-type]
+            cleanup_preflight=cleanup_preflight,
+            silent_config=silent_config,
+            audio_config=audio_config,
+            fused_config=fused_config,
             out_path=out,
         )
     )
     typer.echo(f"Wrote eval report: {result.report_path}")
     typer.echo(f"Records: {len(result.records)}")
+
+
+@app.command("eval-fusion-modes")
+def eval_fusion_modes_cmd(
+    dataset: Path = typer.Option(
+        ...,
+        "--dataset",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        help="Dataset directory containing phrases.jsonl, or a phrases JSONL file.",
+    ),
+    modes: str = typer.Option(
+        "auto,audio_primary,vsr_primary",
+        "--modes",
+        help="Comma-separated fusion modes: auto,audio_primary,vsr_primary.",
+    ),
+    runs: int = typer.Option(1, "--runs", min=1, help="Measured runs per phrase."),
+    warmups: int = typer.Option(1, "--warmups", min=0, help="Warm-up runs per phrase."),
+    cleanup_prompt: str = typer.Option(
+        "v1",
+        "--cleanup-prompt",
+        help="Cleanup prompt versions: v1 or v1,v2.",
+    ),
+    cleanup_timeout_ms: int | None = typer.Option(
+        None,
+        "--cleanup-timeout-ms",
+        min=1,
+        help="Override cleanup timeout for eval runs, in milliseconds.",
+    ),
+    cleanup_preflight: bool = typer.Option(
+        True,
+        "--cleanup-preflight/--no-cleanup-preflight",
+        help="Probe and warm the cleanup model before the first mode sweep.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        file_okay=True,
+        dir_okay=False,
+        writable=True,
+        help="Markdown report path. Defaults to reports/fusion-mode-ab-<date>.md.",
+    ),
+) -> None:
+    """Compare fused eval across fusion modes (TICKET-037)."""
+
+    import logging
+    from datetime import datetime, timezone
+
+    from sabi.eval import MissingEvalDependencyError
+    from sabi.eval.fusion_mode_ab import (
+        FusionModeAbConfig,
+        parse_fusion_modes,
+        run_fusion_mode_ab_eval,
+    )
+    from sabi.eval.harness import require_eval_dependencies
+    from sabi.pipelines.fused_dictate import FusedDictateConfig
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    try:
+        mode_list = parse_fusion_modes(modes)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--modes") from exc
+
+    cleanup_prompts = tuple(
+        _normalize_cleanup_prompt(part, param_hint="--cleanup-prompt")
+        for part in cleanup_prompt.split(",")
+        if part.strip()
+    )
+    if not cleanup_prompts:
+        raise typer.BadParameter(
+            "--cleanup-prompt must include v1 or v2",
+            param_hint="--cleanup-prompt",
+        )
+    if len(set(cleanup_prompts)) != len(cleanup_prompts):
+        raise typer.BadParameter(
+            "--cleanup-prompt contains duplicate versions",
+            param_hint="--cleanup-prompt",
+        )
+
+    fused_base = FusedDictateConfig()
+    if cleanup_timeout_ms is not None:
+        fused_base = fused_base.model_copy(
+            update={
+                "cleanup": fused_base.cleanup.model_copy(
+                    update={"timeout_ms": cleanup_timeout_ms}
+                )
+            }
+        )
+
+    try:
+        require_eval_dependencies()
+    except MissingEvalDependencyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    out_path = out if out is not None else Path("reports") / f"fusion-mode-ab-{stamp}.md"
+
+    report_path = run_fusion_mode_ab_eval(
+        FusionModeAbConfig(
+            dataset_path=dataset,
+            modes=mode_list,
+            runs=runs,
+            warmups=warmups,
+            cleanup_prompts=cleanup_prompts,  # type: ignore[arg-type]
+            cleanup_preflight=cleanup_preflight,
+            fused_base=fused_base,
+            out_path=out_path,
+        )
+    )
+    typer.echo(f"Wrote fusion mode A/B report: {report_path}")
 
 
 def main() -> None:

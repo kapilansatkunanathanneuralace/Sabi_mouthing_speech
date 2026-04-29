@@ -61,6 +61,9 @@ eval = [
     "pandas>=2.2.2",
     "tabulate>=0.9.0",
 ]
+packaging = [
+    "pyinstaller>=6.5",
+]
 
 [project.scripts]
 sabi = "sabi.cli:main"

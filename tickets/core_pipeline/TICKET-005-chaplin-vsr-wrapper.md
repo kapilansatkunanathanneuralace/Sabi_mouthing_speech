@@ -4,7 +4,7 @@ Phase: 1 - ML PoC
 Epic: VSR
 Estimate: L
 Depends on: TICKET-004
-Status: In progress (wrapper + mocked tests landed; GPU WER verification pending)
+Status: Done
 
 ## Goal
 

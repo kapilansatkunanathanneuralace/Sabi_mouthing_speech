@@ -116,3 +116,5 @@ Append one row per pipeline run (see tickets/README.md).
 | TICKET-017 | windows | pipeline | 7780.8 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=2976 roi=989 vsr=1700 asr=0 fusion=0.0 clean=818 inject=0] |
 | TICKET-017 | windows | pipeline | 8126.4 | - | 1 | decision=dry_run confidence=0.86 fusion=auto -> audio_primary prompt=v1 fallback=True [cap=3699 roi=1093 vsr=1491 asr=217 fusion=0.1 clean=803 inject=0] |
 | TICKET-017 | windows | pipeline | 6367.2 | - | 1 | decision=dry_run confidence=0.85 fusion=asr silent prompt=v1 fallback=True [cap=2338 roi=684 vsr=1134 asr=0 fusion=0.0 clean=802 inject=0] |
+| TICKET-005 | cpu | vsr-smoke | 2177.7 | - | 157 | video=hello_world.mp4 fps=29.7 |
+| TICKET-005 | cpu | vsr-smoke | 1806.1 | - | 157 | video=hello_world.mp4 fps=29.7 |

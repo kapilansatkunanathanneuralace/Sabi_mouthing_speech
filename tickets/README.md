@@ -26,11 +26,13 @@ Demo operators should start with [`../docs/DEMO.md`](../docs/DEMO.md). For a non
 **Out of scope (deferred):**
 
 - Voice cloning for TTS (Phase 3 roadmap item, project_roadmap.md line 188).
-- Electron shell, React UI, Python sidecar packaging (roadmap lines 225-272).
-- Code signing, notarization, auto-update (roadmap lines 259-277).
 - Scene/screen context, gaze/gesture (roadmap lines 158-166, Phases 3+).
 - Cross-platform support for the meeting sink - BlackHole (Mac) and PulseAudio (Linux) are noted in the roadmap but deferred out of PoC.
 - App-aware tone routing in cleanup (Slack vs Docs vs code) - `focused_app` is plumbed but the PoC does not branch on it.
+
+**Tracked separately:**
+
+- Electron shell, React UI, Python sidecar, code signing, notarization, auto-update, and cross-platform installers (roadmap lines 225-310) live in the [`distribution_packaging/`](distribution_packaging/README.md) ticket track (TICKET-041 - TICKET-054). They wrap, but do not modify, the ML PoC.
 
 ## Ticket index
 
@@ -76,6 +78,27 @@ Demo operators should start with [`../docs/DEMO.md`](../docs/DEMO.md). For a non
 | [TICKET-038](TICKET-038-low-alignment-asr-fallback.md) | Low-alignment ASR fallback policy | Fusion | M | 016, 032, 037 |
 | [TICKET-039](TICKET-039-expanded-personal-fused-eval-set.md) | Expanded personal fused eval set | Eval | M | 019, 020, 036 |
 | [TICKET-040](TICKET-040-fused-latency-profile-optimization.md) | Fused latency profile + optimization | Pipeline | M | 017, 030, 036 |
+
+### Phase 3 - Distribution & Packaging
+
+Lives in [`distribution_packaging/`](distribution_packaging/README.md) and turns the Python CLI PoC into an installable cross-platform desktop app (Electron + React + PyInstaller Python sidecar; Windows + macOS first, Linux later). Track-level details, ordering, and dependency graph live in that folder's README.
+
+| ID | Title | Epic | Estimate | Depends on |
+| --- | --- | --- | --- | --- |
+| [TICKET-041](distribution_packaging/TICKET-041-packaging-architecture-adr.md) | Packaging architecture ADR | Packaging | S | - |
+| [TICKET-042](distribution_packaging/TICKET-042-python-sidecar-api-contract.md) | Python sidecar API contract | Packaging | M | 041 |
+| [TICKET-043](distribution_packaging/TICKET-043-pyinstaller-sidecar-build.md) | PyInstaller sidecar build | Packaging | L | 042 |
+| [TICKET-044](distribution_packaging/TICKET-044-electron-vite-react-scaffold.md) | Electron + Vite + React scaffold | Packaging | M | 041 |
+| [TICKET-045](distribution_packaging/TICKET-045-electron-sidecar-lifecycle-ipc.md) | Electron sidecar lifecycle + IPC bridge | Packaging | L | 042, 043, 044 |
+| [TICKET-046](distribution_packaging/TICKET-046-tray-shortcuts-window-model.md) | Tray app, global shortcuts, and window model | Packaging | M | 044, 045 |
+| [TICKET-047](distribution_packaging/TICKET-047-onboarding-permissions-wizard.md) | Onboarding and permissions wizard | Packaging | M | 045, 046 |
+| [TICKET-048](distribution_packaging/TICKET-048-model-asset-downloader-cache.md) | Model asset downloader and cache manager | Packaging | M | 042, 047 |
+| [TICKET-049](distribution_packaging/TICKET-049-windows-installer-package.md) | Windows installer package | Packaging | L | 043, 044, 045, 046 |
+| [TICKET-050](distribution_packaging/TICKET-050-macos-dmg-package.md) | macOS DMG package | Packaging | L | 043, 044, 045, 046 |
+| [TICKET-051](distribution_packaging/TICKET-051-auto-update-release-channels.md) | Auto-update and release channels | Packaging | M | 049, 050 |
+| [TICKET-052](distribution_packaging/TICKET-052-packaging-ci-matrix.md) | Packaging CI matrix | Packaging | M | 043, 049, 050 |
+| [TICKET-053](distribution_packaging/TICKET-053-desktop-qa-release-runbook.md) | Desktop app QA and release runbook | Packaging | M | 049, 050, 051, 052 |
+| [TICKET-054](distribution_packaging/TICKET-054-linux-compatibility-spike.md) | Linux compatibility spike | Packaging | M | 053 |
 
 ## Dependency graph
 
@@ -221,7 +244,7 @@ Status legend: **D** = Done, **P** = In progress, **N** = Not started.
 Week 1 - dictation PoC (largely landed):
 
 - **Day 1-2:** 001 (D), 002 (D), 003 (D), 004 (D), 006 (D), 009 (D), 010 (D).
-- **Day 3-4:** 005 (P, GPU WER verification pending), 007 (D), 008 (D).
+- **Day 3-4:** 005 (D), 007 (D), 008 (D).
 - **Day 5-7:** 011 (D), 012 (D).
 
 Week 2 - dictation polish + Phase 2 fusion + cleanup polish (current focus):
@@ -246,6 +269,15 @@ Week 3 - meeting mode (deferred behind fusion + polish):
 - **Day 17:** 026, 028 (mode switcher + mute toggle can be built in parallel).
 - **Day 18:** 027 (silent-meeting pipeline wire-up).
 - **Day 19:** 029 (meeting demo runbook + listening-test eval).
+
+Week 4 - distribution & packaging (Phase 3, see [`distribution_packaging/`](distribution_packaging/README.md)):
+
+- **Day 20:** 041 (architecture ADR), 042 (sidecar API contract).
+- **Day 21:** 043 (PyInstaller sidecar build).
+- **Day 22:** 044 (Electron + Vite + React scaffold), 045 (sidecar lifecycle + IPC).
+- **Day 23:** 046 (tray + shortcuts), 047 (onboarding wizard), 048 (model cache).
+- **Day 24:** 049 (Windows installer), 050 (macOS DMG) in parallel.
+- **Day 25:** 051 (auto-update), 052 (CI matrix), 053 (QA + release runbook), 054 (Linux spike).
 
 ## Ticket template
 

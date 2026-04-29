@@ -14,13 +14,13 @@ from pydantic import BaseModel, Field
 
 from sabi.models.asr import ASRResult
 from sabi.models.vsr.model import VSRResult
+from sabi.runtime.paths import configs_dir
 
 FusionMode = Literal["auto", "audio_primary", "vsr_primary"]
 WordOrigin = Literal["asr", "vsr", "both"]
 LowAlignmentFallback = Literal["higher_confidence", "audio_primary", "vsr_primary"]
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "fusion.toml"
+DEFAULT_CONFIG_PATH = configs_dir() / "fusion.toml"
 
 
 class FusionConfig(BaseModel):

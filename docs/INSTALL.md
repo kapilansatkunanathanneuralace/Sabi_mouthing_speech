@@ -63,6 +63,15 @@ pipeline degrades gracefully when Ollama is unreachable, so installing
 it is optional for the capture/VSR/ASR tickets but required to satisfy
 TICKET-008 acceptance criteria.
 
+The desktop app can now guide this setup from first-run onboarding or the
+settings dashboard. It detects whether Ollama is reachable, opens the
+official Ollama installer page after consent, and can run the model pull
+after a second consent prompt. Ollama remains optional and external to the
+Sabi installer because it installs a local background runtime and stores
+models outside Sabi's cache.
+
+Manual fallback:
+
 1. Install Ollama for Windows from [ollama.com/download](https://ollama.com/download).
 2. Pull the default model tag (matches `configs/cleanup.toml`):
 

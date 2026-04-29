@@ -12,19 +12,78 @@ Work is tracked as numbered tickets in [`tickets/README.md`](tickets/README.md).
 > **New to the repo?** Read [`docs/ONBOARDING.md`](docs/ONBOARDING.md) first. For the demo path, use [`docs/DEMO.md`](docs/DEMO.md); for a layman system explanation, use [`docs/INFRA_CHEAT_SHEET.md`](docs/INFRA_CHEAT_SHEET.md).
 ## Status at a glance
 
+Current ticket progress: **34/54 done**, **0 in progress**, **20 not started** (includes the new Phase 3 distribution & packaging track, TICKET-041 - TICKET-054).
+
 | Area | State | Entry point |
 |---|---|---|
 | Silent dictation (TICKET-011) | Done | `python -m sabi silent-dictate` |
 | Audio dictation (TICKET-012)  | Done | `python -m sabi dictate` |
 | Probe / hardware check (002)  | Done | `python -m sabi probe` |
 | Capture + VAD + hotkey + paste + cleanup (003–010) | Done | see per-feature commands below |
-| VSR wrapper (005) | In progress — GPU WER verification pending | `python -m sabi vsr-smoke <clip.mp4>` |
+| VSR wrapper (005) | Done | `python -m sabi vsr-smoke <clip.mp4>` |
 | Overlay UI, eval harness, demo runbook (013–015) | Done | `python -m sabi eval` / [`docs/DEMO.md`](docs/DEMO.md) |
 | Audio–visual fusion + fused pipeline (016–017) | Done | `python -m sabi fused-dictate` |
 | Cleanup polish v2 + eval A/B (018) | Done | `python -m sabi cleanup-smoke --prompt-version v2 "text"` |
 | Personal fused eval collection + baseline (019–020) | Done | `python -m sabi collect-fused-eval` / `python -m sabi fused-eval-check` |
-| Fused diagnostics + personalization planning (030–034) | Not started | see `tickets/README.md` |
+| Fused diagnostics + recommendations + calibration (030–034) | Partial — 031–033 Done; 030 + 034 Not started | see `tickets/README.md` |
+| Cleanup/fusion policy + expanded eval + latency (035–040) | Partial — 035–038 Done; 039–040 Not started | see `tickets/README.md` |
 | Meeting track (021–029) | Not started — deferred behind fusion + polish | — |
+| Distribution & packaging (041–054) | Partial — 041–048 Done; 049 Partial; 050–054 Not started | see [`tickets/distribution_packaging/`](tickets/distribution_packaging/README.md) |
+
+## Desktop app (alpha)
+
+The installable desktop shell is being built under [`desktop/`](desktop/README.md).
+It uses Electron + Vite + React, starts the Python sidecar, shows live sidecar
+health, can run `probe.run` through JSON-RPC, has resident tray/shortcut behavior,
+includes first-launch onboarding, and manages model downloads in an app-owned cache.
+The Python CLI remains the primary developer/debug path for pipeline work.
+
+## Distribution And Install
+
+Windows installer builds use the slim PyInstaller sidecar and Electron NSIS package:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\build_sidecar_release.py
+cd desktop
+npm run package:win
+npm run validate:win-package
+```
+
+The installer is written to `desktop/dist/Sabi-<version>-setup.exe`. Run it from
+Explorer or PowerShell, keep the default per-user install, then launch Sabi from the
+finish page, Start Menu, or desktop shortcut. Model weights are not bundled; the app
+downloads them into `%LOCALAPPDATA%\Sabi\models` during onboarding.
+The installer is a bootstrap app: real silent/audio/fused dictation also requires the
+full CPU runtime pack, downloaded and activated from the desktop onboarding/runtime
+panel after install.
+
+For local signed smoke builds, create a developer-only self-signed certificate:
+
+```powershell
+cd desktop
+npm run signing:create-local-cert -- -Trust
+$env:WIN_CSC_LINK = ".certs\sabi-local-test-signing.pfx"
+$env:WIN_CSC_KEY_PASSWORD = "<password used above>"
+$env:WIN_SELF_SIGNED_LOCAL = "1"
+$env:WIN_EXPECT_SIGNED = "1"
+npm run package:win
+npm run validate:win-package
+```
+
+Self-signed installers are only for local validation. Public releases still require a
+trusted OV/EV certificate or Azure Trusted Signing; see
+[`docs/distribution_packaging/SIGNING_WINDOWS.md`](docs/distribution_packaging/SIGNING_WINDOWS.md).
+
+To produce the full dictation runtime artifact for distribution, build from a
+CPU-only Python environment:
+
+```powershell
+python scripts\build_sidecar_full_cpu.py
+```
+
+Publish the generated runtime zip and update `configs/runtime/full-cpu.json` with its
+URL, SHA256, and size before asking users to install the full runtime.
 
 ## Quick start (Windows, PowerShell)
 

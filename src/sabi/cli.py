@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -116,6 +117,18 @@ def probe_cmd(
     ),
 ) -> None:
     raise typer.Exit(run_probe(camera_index=camera_index))
+
+
+@app.command("sidecar")
+def sidecar_cmd() -> None:
+    """Run the JSON-RPC stdio sidecar for the desktop shell (TICKET-042)."""
+
+    import logging
+
+    from sabi.sidecar.server import run_stdio_server
+
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    raise typer.Exit(run_stdio_server())
 
 
 @app.command("mic-preview")

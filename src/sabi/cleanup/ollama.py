@@ -27,11 +27,11 @@ import httpx
 from pydantic import BaseModel, Field
 
 from sabi.cleanup.prompts import load_prompt
+from sabi.runtime.paths import configs_dir
 
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "cleanup.toml"
+DEFAULT_CONFIG_PATH = configs_dir() / "cleanup.toml"
 DEFAULT_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "v1_dictation.txt"
 
 Source = Literal["asr", "vsr", "fused"]

@@ -25,6 +25,19 @@ wheels/
 .installed.cfg
 *.egg
 
+# Packaged sidecar build artifacts
+packaging/sidecar/build/
+packaging/sidecar/dist/
+packaging/sidecar/package-build/
+packaging/sidecar/package-dist/
+packaging/sidecar/release-build/
+packaging/sidecar/release-dist/
+packaging/sidecar/full-cpu-build/
+packaging/sidecar/full-cpu-dist/
+packaging/sidecar/runtime-packs/
+desktop/dist/
+desktop/.certs/
+
 # Tooling
 .pytest_cache/
 .ruff_cache/

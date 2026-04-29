@@ -23,6 +23,15 @@ def test_dictation_commands_advertise_ui_option() -> None:
     assert "--cleanup-prompt" in audio.output
 
 
+def test_sidecar_command_advertises_json_rpc_mode() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["sidecar", "--help"])
+
+    assert result.exit_code == 0
+    assert "JSON-RPC" in result.output
+
+
 def test_eval_command_advertises_eval_options() -> None:
     runner = CliRunner()
 

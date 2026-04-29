@@ -51,12 +51,13 @@ from sabi.pipelines.silent_dictate import (
 from sabi.pipelines.silent_dictate import (
     UtteranceProcessed as SilentUtteranceProcessed,
 )
+from sabi.runtime.paths import repo_root, reports_dir
 
 PipelineChoice = Literal["both", "silent", "audio", "fused"]
 PipelineName = Literal["silent", "audio", "fused"]
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_REPORT_DIR = REPO_ROOT / "reports"
+REPO_ROOT = repo_root()
+DEFAULT_REPORT_DIR = reports_dir()
 EVAL_INSTALL_MESSAGE = "Install eval dependencies with: pip install -e .[eval]"
 
 

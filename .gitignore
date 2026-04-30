@@ -62,6 +62,11 @@ data/models/
 reports/*.md
 !reports/latency-log.md
 
+# Env (local secrets)
+.env
+.env.local
+.env.*.local
+
 # IDE
 .idea/
 .vscode/

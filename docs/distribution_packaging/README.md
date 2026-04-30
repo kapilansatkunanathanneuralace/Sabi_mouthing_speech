@@ -96,6 +96,10 @@ re-download. `configs/vsr_weights.toml` remains supported for the legacy
   sidecar, installer, and signing architecture.
 - `docs/distribution_packaging/HOTKEY_OWNERSHIP.md` - desktop hotkey ownership.
 - `docs/distribution_packaging/WINDOWS_INSTALLER.md` - Windows NSIS package flow.
+- `docs/distribution_packaging/WINDOWS_SIDECAR_RUNTIME_FLOW.md` - Windows
+  installer, slim sidecar, and full runtime zip activation flow.
 - `docs/distribution_packaging/SIGNING_WINDOWS.md` - Windows code-signing plan.
+- `docs/distribution_packaging/SIGNING_MACOS.md` - macOS signing,
+  notarization, sidecar signing, and runtime-pack quarantine plan.
 - `docs/INSTALL.md` - current Windows-first developer install path.
 - `docs/ONBOARDING.md` - current repo onboarding for developers.

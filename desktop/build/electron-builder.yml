@@ -1,0 +1,70 @@
+appId: com.sabi.desktop
+productName: Sabi
+asar: true
+
+directories:
+  output: dist
+
+files:
+  - build/icons/**
+  - dist-electron/**
+  - dist-renderer/**
+  - package.json
+
+extraResources:
+  - from: ../packaging/sidecar/release-dist/sabi-sidecar
+    to: sidecar/sabi-sidecar
+    filter:
+      - "**/*"
+  - from: ../configs/runtime
+    to: runtime
+    filter:
+      - "**/*.json"
+  - from: ../configs/cleanup.toml
+    to: configs/cleanup.toml
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icons/icon.ico
+  artifactName: Sabi-${version}-setup.${ext}
+  requestedExecutionLevel: asInvoker
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  artifactName: Sabi-${version}-${arch}.${ext}
+  notarize: true
+  extendInfo:
+    NSCameraUsageDescription: Sabi uses the camera to capture silent speech mouth movements during dictation.
+    NSMicrophoneUsageDescription: Sabi uses the microphone for audio and fused dictation modes.
+    NSAccessibilityUsageDescription: Sabi needs Accessibility permission to trigger dictation shortcuts and paste text into focused apps.
+    NSInputMonitoringUsageDescription: Sabi needs Input Monitoring permission to listen for global dictation hotkeys.
+
+afterPack: scripts/after-pack-mac.mjs
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Sabi
+  uninstallDisplayName: Sabi

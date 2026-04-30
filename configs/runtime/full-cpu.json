@@ -4,9 +4,9 @@
   "platform": "win32",
   "arch": "x64",
   "min_desktop_version": "0.0.1",
-  "url": "file:///C:/Users/KaSat/OneDrive/Desktop/Sabi/Sabi_MouthingSpeech/packaging/sidecar/runtime-packs/sabi-full-cpu-runtime-0.0.1-win-x64.zip",
-  "sha256": "583acc532e33914a007311232adc6530563e0a7660136f33af562b84293c97e7",
-  "size_bytes": 3041751624,
+  "url": "https://github.com/kapz28/sabi-runtime-packs/releases/download/full-cpu-v0.0.1-win-x64/sabi-full-cpu-runtime-0.0.1-win-x64.zip",
+  "sha256": "7395dc8e5c909555f82f7f6ef2783ee916ede0c5f971ab50922482c33d472f5c",
+  "size_bytes": 383068943,
   "artifact": "sabi-full-cpu-runtime-0.0.1-win-x64.zip",
   "sidecar_dir": "sabi-sidecar",
   "description": "Full CPU sidecar runtime with Torch, MediaPipe, faster-whisper, Chaplin, and Sabi dictation pipelines."

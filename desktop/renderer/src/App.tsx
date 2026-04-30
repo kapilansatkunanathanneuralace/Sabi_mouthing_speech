@@ -311,7 +311,9 @@ function ResultCard({ title, rows }: { title: string; rows: Array<[string, unkno
   );
 }
 
-function historyEntryFromNotification(notification: SidecarNotification): DictationHistoryEntry | null {
+function historyEntryFromNotification(
+  notification: SidecarNotification
+): DictationHistoryEntry | null {
   const match = /^dictation\.(silent|audio|fused)\.utterance$/.exec(notification.method);
   if (!match || !isObject(notification.params)) {
     return null;

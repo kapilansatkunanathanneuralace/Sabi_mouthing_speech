@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sabi">
+  <rect width="256" height="256" rx="56" fill="#0f172a"/>
+  <circle cx="128" cy="92" r="42" fill="#7dd3fc"/>
+  <path fill="#bae6fd" d="M58 163c24 32 116 32 140 0-19 55-121 55-140 0Z"/>
+  <path fill="#38bdf8" d="M79 152c21 18 77 18 98 0-12 33-86 33-98 0Z"/>
+</svg>

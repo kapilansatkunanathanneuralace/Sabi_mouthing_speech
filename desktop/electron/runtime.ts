@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync
 } from "node:fs";
@@ -50,6 +51,19 @@ export interface RuntimeDownloadParams {
 const RUNTIME_ID = "full-cpu";
 const MANIFEST_NAME = "full-cpu.json";
 
+function runtimeManifestNames(): string[] {
+  const platformAlias = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "win" : process.platform;
+  return [
+    `full-cpu-${platformAlias}-${process.arch}.json`,
+    `full-cpu-${process.platform}-${process.arch}.json`,
+    MANIFEST_NAME
+  ];
+}
+
+function sidecarExecutableName(): string {
+  return process.platform === "win32" ? "sabi-sidecar.exe" : "sabi-sidecar";
+}
+
 function appDataRoot(): string {
   if (process.platform === "win32") {
     return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "Sabi");
@@ -69,8 +83,7 @@ export function activeRuntimeDir(): string {
 }
 
 export function activeRuntimeBinary(): string {
-  const exeName = process.platform === "win32" ? "sabi-sidecar.exe" : "sabi-sidecar";
-  return join(activeRuntimeDir(), "sabi-sidecar", exeName);
+  return join(activeRuntimeDir(), "sabi-sidecar", sidecarExecutableName());
 }
 
 export function activeRuntimeCwd(): string {
@@ -139,9 +152,15 @@ export class RuntimeManager {
   }
 
   private readManifest(): RuntimeManifest {
-    const packagedManifest = app.isPackaged
-      ? join(process.resourcesPath, "runtime", MANIFEST_NAME)
-      : join(dirname(app.getAppPath()), "configs", "runtime", MANIFEST_NAME);
+    const runtimeDir = app.isPackaged
+      ? join(process.resourcesPath, "runtime")
+      : join(dirname(app.getAppPath()), "configs", "runtime");
+    const packagedManifest = runtimeManifestNames()
+      .map((name) => join(runtimeDir, name))
+      .find((candidate) => existsSync(candidate));
+    if (!packagedManifest) {
+      throw new Error(`No runtime manifest found in ${runtimeDir}`);
+    }
     return JSON.parse(readFileSync(packagedManifest, "utf-8")) as RuntimeManifest;
   }
 
@@ -200,12 +219,24 @@ export class RuntimeManager {
   }
 
   private extractArchive(path: string, manifest: RuntimeManifest): void {
-    if (process.platform !== "win32") {
-      throw new Error("runtime pack extraction is currently implemented for Windows only");
-    }
     const staging = join(runtimeRoot(), "staging");
     rmSync(staging, { recursive: true, force: true });
     mkdirSync(staging, { recursive: true });
+    if (process.platform === "win32") {
+      this.extractArchiveWindows(path, staging);
+    } else if (process.platform === "darwin") {
+      this.extractArchiveMac(path, staging);
+    } else {
+      throw new Error(`runtime pack extraction is not implemented for ${process.platform}`);
+    }
+    const extractedSidecar = join(staging, manifest.sidecar_dir, sidecarExecutableName());
+    if (!existsSync(extractedSidecar)) {
+      throw new Error(`runtime pack missing sidecar binary: ${extractedSidecar}`);
+    }
+    this.activateStagedRuntime(staging, manifest);
+  }
+
+  private extractArchiveWindows(path: string, staging: string): void {
     const result = spawnSync(
       "powershell",
       [
@@ -227,12 +258,28 @@ export class RuntimeManager {
     if (result.status !== 0) {
       throw new Error(result.stderr || "runtime extraction failed");
     }
-    const extractedSidecar = join(staging, manifest.sidecar_dir, "sabi-sidecar.exe");
-    if (!existsSync(extractedSidecar)) {
-      throw new Error(`runtime pack missing sidecar binary: ${extractedSidecar}`);
+  }
+
+  private extractArchiveMac(path: string, staging: string): void {
+    const result = spawnSync("ditto", ["-x", "-k", path, staging], {
+      encoding: "utf-8"
+    });
+    if (result.status !== 0) {
+      throw new Error(result.stderr || "runtime extraction failed");
     }
+    spawnSync("xattr", ["-dr", "com.apple.quarantine", staging], {
+      encoding: "utf-8"
+    });
+  }
+
+  private activateStagedRuntime(staging: string, manifest: RuntimeManifest): void {
     rmSync(activeRuntimeDir(), { recursive: true, force: true });
     mkdirSync(dirname(activeRuntimeDir()), { recursive: true });
+    if (process.platform !== "win32") {
+      renameSync(staging, activeRuntimeDir());
+      this.writeRuntimeMetadata(manifest);
+      return;
+    }
     const move = spawnSync(
       "powershell",
       [
@@ -254,6 +301,10 @@ export class RuntimeManager {
     if (move.status !== 0) {
       throw new Error(move.stderr || "runtime activation failed");
     }
+    this.writeRuntimeMetadata(manifest);
+  }
+
+  private writeRuntimeMetadata(manifest: RuntimeManifest): void {
     writeFileSync(
       join(activeRuntimeDir(), "runtime-pack.json"),
       JSON.stringify(manifest, null, 2) + "\n",

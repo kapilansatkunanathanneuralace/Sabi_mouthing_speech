@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,23 @@ ARTIFACT_ROOT = ROOT / "packaging" / "sidecar" / "runtime-packs"
 RUNTIME_NAME = "sabi-full-cpu-runtime"
 RUNTIME_VERSION = "0.0.1"
 MIN_DESKTOP_VERSION = "0.0.1"
+
+
+def _platform_key() -> str:
+    if sys.platform == "win32":
+        return "win"
+    if sys.platform == "darwin":
+        return "macos"
+    return sys.platform
+
+
+def _arch_key() -> str:
+    machine = platform.machine().lower()
+    if machine in {"amd64", "x86_64"}:
+        return "x64"
+    if machine in {"arm64", "aarch64"}:
+        return "arm64"
+    return machine or ("x64" if sys.maxsize > 2**32 else "x86")
 
 
 def _run_build() -> None:
@@ -103,7 +121,7 @@ def _write_runtime_metadata() -> dict[str, object]:
         "name": RUNTIME_NAME,
         "version": RUNTIME_VERSION,
         "platform": sys.platform,
-        "arch": "x64" if sys.maxsize > 2**32 else "x86",
+        "arch": _arch_key(),
         "min_desktop_version": MIN_DESKTOP_VERSION,
         "sidecar_dir": "sabi-sidecar",
     }
@@ -116,7 +134,8 @@ def _write_runtime_metadata() -> dict[str, object]:
 
 def _make_zip(metadata: dict[str, object]) -> dict[str, object]:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
-    base_name = ARTIFACT_ROOT / f"{RUNTIME_NAME}-{RUNTIME_VERSION}-win-x64"
+    target = f"{_platform_key()}-{_arch_key()}"
+    base_name = ARTIFACT_ROOT / f"{RUNTIME_NAME}-{RUNTIME_VERSION}-{target}"
     zip_path = Path(shutil.make_archive(str(base_name), "zip", root_dir=DIST))
     manifest = {
         **metadata,
@@ -124,7 +143,7 @@ def _make_zip(metadata: dict[str, object]) -> dict[str, object]:
         "size_bytes": zip_path.stat().st_size,
         "sha256": _sha256(zip_path),
     }
-    manifest_path = ARTIFACT_ROOT / f"{RUNTIME_NAME}-{RUNTIME_VERSION}-win-x64.json"
+    manifest_path = ARTIFACT_ROOT / f"{RUNTIME_NAME}-{RUNTIME_VERSION}-{target}.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return {"zip_path": zip_path, "manifest_path": manifest_path, "manifest": manifest}
 

@@ -1,6 +1,8 @@
 import type {
+  DesktopSettings,
   OnboardingStep,
   PlatformInfo,
+  PrivacySettingsTarget,
   ProbeResponse,
   RuntimeStatus,
   SidecarNotification
@@ -15,7 +17,9 @@ export interface StepProps {
 
 export interface ProbeStepProps extends StepProps {
   callProbe: () => Promise<ProbeResponse>;
-  openPrivacySettings: (target: ProbeTarget) => Promise<void>;
+  openPrivacySettings: (target: PrivacySettingsTarget) => Promise<void>;
+  requestMediaAccess: (target: ProbeTarget) => Promise<{ supported: boolean; granted: boolean }>;
+  mediaStatus: (target: ProbeTarget) => Promise<{ supported: boolean; status: string }>;
 }
 
 export interface ModelsStepProps extends StepProps {
@@ -27,4 +31,5 @@ export interface ModelsStepProps extends StepProps {
 
 export interface DoneStepProps extends StepProps {
   complete: () => Promise<void>;
+  settings: DesktopSettings;
 }

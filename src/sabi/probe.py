@@ -14,6 +14,11 @@ from dataclasses import asdict, dataclass
 from rich.console import Console
 from rich.table import Table
 
+try:
+    cv2 = importlib.import_module("cv2")
+except Exception:  # noqa: BLE001 - import matrix reports dependency failures later
+    cv2 = None
+
 
 @dataclass(frozen=True)
 class ProbeResult:
@@ -148,10 +153,10 @@ def _print_torch(console: Console) -> None:
 
 
 def _probe_webcam(console: Console, camera_index: int = 0) -> bool:
-    import cv2
-
     cap = None
     try:
+        if cv2 is None:
+            raise RuntimeError("cv2 is not available")
         if sys.platform == "win32":
             cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
         else:
@@ -181,19 +186,20 @@ def _probe_webcam(console: Console, camera_index: int = 0) -> bool:
             cap.release()
 
 
-def _probe_audio(console: Console) -> bool:
+def _probe_audio(console: Console, device_index: int | None = None) -> bool:
     import sounddevice as sd
 
     try:
         default_in, _default_out = sd.default.device
-        if default_in is None or int(default_in) < 0:
+        selected = default_in if device_index is None else device_index
+        if selected is None or int(selected) < 0:
             console.print("[red]Audio input: no default input device.[/red]")
             return False
-        dev = sd.query_devices(default_in, "input")
+        dev = sd.query_devices(selected, "input")
         name = str(dev.get("name", ""))
         default_sr = dev.get("default_samplerate")
         console.print(
-            f"[green]Audio default input[/green]: index={default_in}, name={name!r}, "
+            f"[green]Audio input[/green]: index={selected}, name={name!r}, "
             f"default_samplerate={default_sr}",
         )
         try:
@@ -201,7 +207,7 @@ def _probe_audio(console: Console) -> bool:
                 samplerate=16000,
                 channels=1,
                 dtype="float32",
-                device=default_in,
+                device=selected,
             )
             console.print("[green]16 kHz mono float32: PASS[/green] (check_input_settings)")
         except Exception as exc:  # noqa: BLE001
@@ -219,7 +225,81 @@ def _probe_audio(console: Console) -> bool:
         return False
 
 
-def collect_probe_results(*, camera_index: int = 0) -> dict[str, object]:
+def list_probe_devices(*, max_camera_index: int = 4) -> dict[str, object]:
+    """Return probe-compatible camera indexes and sounddevice input indexes."""
+
+    cameras: list[dict[str, object]] = []
+    try:
+        if cv2 is None:
+            raise RuntimeError("cv2 is not available")
+        for index in range(max_camera_index + 1):
+            cap = None
+            try:
+                if sys.platform == "win32":
+                    cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+                else:
+                    cap = cv2.VideoCapture(index)
+                available = bool(cap.isOpened())
+                cameras.append(
+                    {
+                        "kind": "camera",
+                        "index": index,
+                        "name": f"Camera {index}",
+                        "available": available,
+                        "detail": "OpenCV device index",
+                    },
+                )
+            finally:
+                if cap is not None:
+                    cap.release()
+    except Exception as exc:  # noqa: BLE001 - device listing must not crash
+        cameras.append(
+            {
+                "kind": "camera",
+                "index": 0,
+                "name": "Camera 0",
+                "available": False,
+                "detail": str(exc),
+            },
+        )
+
+    microphones: list[dict[str, object]] = []
+    try:
+        import sounddevice as sd
+
+        devices = sd.query_devices()
+        for index, device in enumerate(devices):
+            max_inputs = int(device.get("max_input_channels", 0))
+            if max_inputs <= 0:
+                continue
+            microphones.append(
+                {
+                    "kind": "microphone",
+                    "index": index,
+                    "name": str(device.get("name", f"Microphone {index}")),
+                    "available": True,
+                    "detail": f"{max_inputs} input channel(s)",
+                },
+            )
+    except Exception as exc:  # noqa: BLE001
+        microphones.append(
+            {
+                "kind": "microphone",
+                "index": -1,
+                "name": "System default microphone",
+                "available": False,
+                "detail": str(exc),
+            },
+        )
+
+    return {"cameras": cameras, "microphones": microphones}
+
+
+def collect_probe_results(
+    *,
+    camera_index: int = 0,
+    audio_device_index: int | None = None,
+) -> dict[str, object]:
     """Return probe results as structured data without writing to stdout."""
 
     failures = 0
@@ -254,13 +334,17 @@ def collect_probe_results(*, camera_index: int = 0) -> dict[str, object]:
     }
 
     try:
-        audio_ok = _probe_audio(record)
+        audio_ok = _probe_audio(record, device_index=audio_device_index)
     except Exception as exc:  # noqa: BLE001 - packaged audio backends may fail to load
         audio_ok = False
         record.print(f"[red]Audio input: FAILED - {exc!s}[/red]")
     if not audio_ok:
         failures += 1
-    audio = {"ok": audio_ok, "output": record.export_text(clear=True).strip()}
+    audio = {
+        "ok": audio_ok,
+        "device_index": audio_device_index,
+        "output": record.export_text(clear=True).strip(),
+    }
 
     result = ProbeResult(
         runtime={
@@ -293,7 +377,12 @@ def _print_import_table(console: Console, rows: list[tuple[str, bool, str]]) -> 
     return all_ok
 
 
-def run_probe(*, camera_index: int = 0, console: Console | None = None) -> int:
+def run_probe(
+    *,
+    camera_index: int = 0,
+    audio_device_index: int | None = None,
+    console: Console | None = None,
+) -> int:
     """Run all checks. Returns process exit code (0 = success)."""
     con = console or Console()
     failures = 0
@@ -313,7 +402,7 @@ def run_probe(*, camera_index: int = 0, console: Console | None = None) -> int:
     if not _probe_webcam(con, camera_index=camera_index):
         failures += 1
 
-    if not _probe_audio(con):
+    if not _probe_audio(con, device_index=audio_device_index):
         failures += 1
 
     if failures:
@@ -331,8 +420,17 @@ def _cli_argv() -> int:
         default=0,
         help="Webcam index for OpenCV.",
     )
+    parser.add_argument(
+        "--audio-device-index",
+        type=int,
+        default=None,
+        help="sounddevice input index; omit to use the system default.",
+    )
     args = parser.parse_args()
-    return run_probe(camera_index=args.camera_index)
+    return run_probe(
+        camera_index=args.camera_index,
+        audio_device_index=args.audio_device_index,
+    )
 
 
 def main() -> int:

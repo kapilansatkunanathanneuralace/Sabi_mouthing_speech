@@ -70,7 +70,14 @@ function App() {
     setProbeLoading(true);
     setProbeError(null);
     try {
-      setProbe((await call("probe.run", { camera_index: 0 })) as unknown as ProbeResponse);
+      const probeParams: Record<string, JsonValue> = { camera_index: settings?.cameraIndex ?? 0 };
+      if (
+        settings?.microphoneDeviceIndex !== null &&
+        settings?.microphoneDeviceIndex !== undefined
+      ) {
+        probeParams.audio_device_index = settings.microphoneDeviceIndex;
+      }
+      setProbe((await call("probe.run", probeParams)) as unknown as ProbeResponse);
     } catch (error) {
       setProbeError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -134,7 +141,6 @@ function App() {
             </button>
           </div>
         ) : null}
-        <SupabasePanel />
         {settings && platform && !settings.onboardingCompleted ? (
           <OnboardingWizard
             call={call}
@@ -202,6 +208,13 @@ function Dashboard({
 }: DashboardProps) {
   return (
     <>
+        <section className="launch-summary" aria-label="Launch summary">
+          <h2>Ready for dictation</h2>
+          <p>
+            Use {settings?.hotkey ?? "your configured shortcut"} to start Sabi. Runtime status,
+            account status, dictation history, and cache controls are available below.
+          </p>
+        </section>
         <div className="actions">
           <button type="button" onClick={() => void runProbe()} disabled={probeLoading}>
             {probeLoading ? "Running probe..." : "Run probe"}
@@ -269,6 +282,7 @@ function Dashboard({
             </label>
           </section>
         ) : null}
+        <SupabasePanel />
         <RuntimePanel onChange={setRuntime} runtime={runtime} />
         <DictationHistory entries={history} onClear={clearHistory} onCopy={copyHistoryText} />
         <OllamaPanel compact />

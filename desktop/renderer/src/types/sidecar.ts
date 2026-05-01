@@ -44,12 +44,25 @@ export interface ProbeResponse {
 export type DesktopMode = "push_to_talk" | "toggle";
 export type DesktopPipeline = "silent" | "audio" | "fused";
 export type DictationPipeline = DesktopPipeline | "vsr";
-export type OnboardingStep =
-  | "welcome"
+export type PrivacySettingsTarget =
   | "camera"
   | "microphone"
   | "accessibility"
+  | "input-monitoring";
+export type OnboardingStep =
+  | "account"
+  | "profile"
+  | "welcome"
+  | "camera"
+  | "cameraDevice"
+  | "microphone"
+  | "microphoneDevice"
+  | "accessibility"
+  | "shortcut"
   | "models"
+  | "calibrationIntro"
+  | "calibrationSample"
+  | "calibrationSummary"
   | "optional"
   | "done";
 
@@ -61,14 +74,81 @@ export interface DesktopSettings {
   overlayEnabled: boolean;
   onboardingCompleted: boolean;
   onboardingStep: OnboardingStep;
+  onboardingProfileDraft: OnboardingProfileDraft | null;
+  cameraIndex: number;
+  microphoneDeviceIndex: number | null;
+  shortcutVerified: boolean;
+  calibrationProgress: CalibrationProgress | null;
 }
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;
+
+export interface OnboardingProfileDraft {
+  referralSource: string;
+  profession: string;
+  useCases: string[];
+  workEnvironment: string;
+  updatedAt: string;
+}
+
+export type CalibrationSampleStatus = "pending" | "passed" | "failed" | "cancelled";
+
+export interface CalibrationSampleProgress {
+  sampleId: string;
+  text: string;
+  status: CalibrationSampleStatus;
+  attempts: number;
+  updatedAt: string;
+  transcript?: string;
+  error?: string;
+}
+
+export interface CalibrationProgress {
+  skipped: boolean;
+  completed: boolean;
+  samples: CalibrationSampleProgress[];
+}
+
+export interface CalibrationSamplePlan {
+  sample_id: string;
+  text: string;
+  index: number;
+  total: number;
+  mode: "optional";
+}
+
+export interface CalibrationPlanResponse {
+  samples: CalibrationSamplePlan[];
+}
+
+export interface CalibrationRunResponse {
+  sample_id: string;
+  text: string;
+  mode: "optional";
+  ok: boolean;
+  status: "passed" | "failed" | "cancelled";
+  transcript: string;
+  error: string | null;
+  quality: Record<string, JsonValue>;
+}
 
 export interface PlatformInfo {
   platform: string;
   isMac: boolean;
   isWindows: boolean;
+}
+
+export interface ProbeDevice {
+  kind: "camera" | "microphone";
+  index: number;
+  name: string;
+  available: boolean;
+  detail?: string;
+}
+
+export interface ProbeDevicesResponse {
+  cameras: ProbeDevice[];
+  microphones: ProbeDevice[];
 }
 
 export type CacheAssetStatus = "present" | "missing" | "corrupt" | "unsupported";

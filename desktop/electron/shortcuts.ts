@@ -61,6 +61,68 @@ export class ShortcutController {
     }
   }
 
+  validateAccelerator(accelerator: string): { ok: boolean; message: string } {
+    if (!accelerator.trim()) {
+      return { ok: false, message: "Enter a shortcut." };
+    }
+    if (accelerator === this.accelerator) {
+      return { ok: true, message: "Current shortcut is already registered." };
+    }
+    const registered = this.registry.register(accelerator, () => undefined);
+    if (registered) {
+      this.registry.unregister(accelerator);
+      return { ok: true, message: "Shortcut is available." };
+    }
+    return { ok: false, message: "Shortcut could not be registered. It may be in use." };
+  }
+
+  testAccelerator(
+    accelerator: string,
+    timeoutMs = 10000
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!accelerator.trim()) {
+      return Promise.resolve({ ok: false, message: "Enter a shortcut." });
+    }
+
+    const previous = this.accelerator;
+    if (previous) {
+      this.registry.unregister(previous);
+      this.accelerator = null;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer: NodeJS.Timeout | null = null;
+      const cleanup = () => {
+        this.registry.unregister(accelerator);
+        if (previous) {
+          this.register();
+        }
+      };
+      const finish = (ok: boolean, message: string) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        cleanup();
+        resolve({ ok, message });
+      };
+      const registered = this.registry.register(accelerator, () => {
+        finish(true, "Shortcut received.");
+      });
+      if (!registered) {
+        finish(false, "Shortcut could not be registered. Choose a different shortcut.");
+        return;
+      }
+      timer = setTimeout(() => {
+        finish(false, "Shortcut was not pressed before the test timed out.");
+      }, timeoutMs);
+    });
+  }
+
   async start(): Promise<void> {
     const settings = this.settingsStore.get();
     try {

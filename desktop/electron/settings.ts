@@ -4,6 +4,48 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+const onboardingSteps = [
+  "account",
+  "profile",
+  "welcome",
+  "camera",
+  "cameraDevice",
+  "microphone",
+  "microphoneDevice",
+  "accessibility",
+  "shortcut",
+  "models",
+  "calibrationIntro",
+  "calibrationSample",
+  "calibrationSummary",
+  "optional",
+  "done"
+] as const;
+
+const onboardingProfileDraftSchema = z.object({
+  referralSource: z.string(),
+  profession: z.string(),
+  useCases: z.array(z.string()),
+  workEnvironment: z.string(),
+  updatedAt: z.string()
+});
+
+const calibrationSampleSchema = z.object({
+  sampleId: z.string(),
+  text: z.string(),
+  status: z.enum(["pending", "passed", "failed", "cancelled"]),
+  attempts: z.number().int().min(0),
+  updatedAt: z.string(),
+  transcript: z.string().optional(),
+  error: z.string().optional()
+});
+
+const calibrationProgressSchema = z.object({
+  skipped: z.boolean(),
+  completed: z.boolean(),
+  samples: z.array(calibrationSampleSchema)
+});
+
 export const settingsSchema = z.object({
   mode: z.enum(["push_to_talk", "toggle"]),
   hotkey: z.string().min(1),
@@ -11,21 +53,19 @@ export const settingsSchema = z.object({
   pasteOnAccept: z.boolean(),
   overlayEnabled: z.boolean(),
   onboardingCompleted: z.boolean(),
-  onboardingStep: z.enum([
-    "welcome",
-    "camera",
-    "microphone",
-    "accessibility",
-    "models",
-    "optional",
-    "done"
-  ])
+  onboardingStep: z.enum(onboardingSteps),
+  onboardingProfileDraft: onboardingProfileDraftSchema.nullable(),
+  cameraIndex: z.number().int().min(0),
+  microphoneDeviceIndex: z.number().int().min(0).nullable(),
+  shortcutVerified: z.boolean(),
+  calibrationProgress: calibrationProgressSchema.nullable()
 });
 
 export const settingsPatchSchema = settingsSchema.partial();
 
 export type DesktopSettings = z.infer<typeof settingsSchema>;
 export type DesktopSettingsPatch = z.infer<typeof settingsPatchSchema>;
+type OnboardingStep = DesktopSettings["onboardingStep"];
 
 export function defaultHotkey(platform: NodeJS.Platform = process.platform): string {
   return platform === "darwin" ? "CommandOrControl+Alt+Space" : "Control+Alt+Space";
@@ -39,8 +79,45 @@ export function defaultSettings(platform: NodeJS.Platform = process.platform): D
     pasteOnAccept: true,
     overlayEnabled: false,
     onboardingCompleted: false,
-    onboardingStep: "welcome"
+    onboardingStep: "account",
+    onboardingProfileDraft: null,
+    cameraIndex: 0,
+    microphoneDeviceIndex: null,
+    shortcutVerified: false,
+    calibrationProgress: null
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function normalizeOnboardingStep(
+  value: unknown,
+  onboardingCompleted: boolean
+): OnboardingStep {
+  if (onboardingCompleted) {
+    return "done";
+  }
+  if (typeof value === "string" && onboardingSteps.includes(value as OnboardingStep)) {
+    return value as OnboardingStep;
+  }
+  return "account";
+}
+
+export function normalizeSettings(
+  raw: unknown,
+  platform: NodeJS.Platform = process.platform
+): DesktopSettings {
+  const defaults = defaultSettings(platform);
+  if (!isRecord(raw)) {
+    return defaults;
+  }
+  const merged = { ...defaults, ...raw };
+  const onboardingCompleted = raw.onboardingCompleted === true;
+  merged.onboardingCompleted = onboardingCompleted;
+  merged.onboardingStep = normalizeOnboardingStep(raw.onboardingStep, onboardingCompleted);
+  return settingsSchema.parse(merged);
 }
 
 export class SettingsStore extends EventEmitter {
@@ -81,7 +158,7 @@ export class SettingsStore extends EventEmitter {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("settings file must contain an object");
       }
-      return settingsSchema.parse({ ...defaultSettings(this.platform), ...parsed });
+      return normalizeSettings(parsed, this.platform);
     } catch {
       this.quarantineCorruptFile();
       const defaults = defaultSettings(this.platform);

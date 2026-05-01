@@ -8,6 +8,7 @@ import type {
   OllamaPullResult,
   OllamaStatus,
   PlatformInfo,
+  PrivacySettingsTarget,
   RuntimeDownloadParams,
   RuntimeStatus,
   SidecarNotification,
@@ -60,7 +61,7 @@ declare global {
       };
       platform: {
         info: () => Promise<PlatformInfo>;
-        openPrivacySettings: (target: "camera" | "microphone") => Promise<void>;
+        openPrivacySettings: (target: PrivacySettingsTarget) => Promise<void>;
       };
       permissions: {
         accessibilityStatus: (
@@ -69,6 +70,16 @@ declare global {
         mediaStatus: (
           mediaType: "camera" | "microphone"
         ) => Promise<{ supported: boolean; status: string }>;
+        requestMediaAccess: (
+          mediaType: "camera" | "microphone"
+        ) => Promise<{ supported: boolean; granted: boolean }>;
+      };
+      shortcuts: {
+        validate: (accelerator: string) => Promise<{ ok: boolean; message: string }>;
+        test: (
+          accelerator: string,
+          timeoutMs?: number
+        ) => Promise<{ ok: boolean; message: string }>;
       };
     };
   }

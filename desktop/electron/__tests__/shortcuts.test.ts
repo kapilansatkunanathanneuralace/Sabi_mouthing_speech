@@ -83,4 +83,34 @@ describe("ShortcutController", () => {
       expect(sidecar.call).toHaveBeenCalledWith("dictation.silent.start", { dry_run: false })
     );
   });
+
+  it("validates available and conflicting accelerators without changing settings", () => {
+    const { registry, shortcuts, store } = makeHarness();
+    expect(shortcuts.validateAccelerator("Control+Shift+Space")).toEqual({
+      ok: true,
+      message: "Shortcut is available."
+    });
+    expect(registry.unregister).toHaveBeenCalledWith("Control+Shift+Space");
+
+    vi.mocked(registry.register).mockReturnValueOnce(false);
+    expect(shortcuts.validateAccelerator("Control+Shift+Space")).toEqual({
+      ok: false,
+      message: "Shortcut could not be registered. It may be in use."
+    });
+    expect(store.get().hotkey).toBe("Control+Alt+Space");
+  });
+
+  it("resolves shortcut test mode when the candidate fires", async () => {
+    const { callback, registry, shortcuts } = makeHarness();
+    shortcuts.register();
+    const result = shortcuts.testAccelerator("Control+Shift+Space", 500);
+    callback();
+    await expect(result).resolves.toEqual({
+      ok: true,
+      message: "Shortcut received."
+    });
+    expect(registry.unregister).toHaveBeenCalledWith("Control+Alt+Space");
+    expect(registry.unregister).toHaveBeenCalledWith("Control+Shift+Space");
+    expect(registry.register).toHaveBeenLastCalledWith("Control+Alt+Space", expect.any(Function));
+  });
 });

@@ -115,14 +115,21 @@ events.
 ## First Launch Onboarding
 
 Fresh settings show a guided first-launch wizard before the main dashboard. The
-wizard resumes from the last saved step if the user quits midway. It verifies camera
-and microphone access with `probe.run`, checks platform permissions through Electron
-helpers, downloads VSR and ASR model assets with `cache.download`, and surfaces
-progress notifications from the Python sidecar.
+wizard resumes from the last saved step if the user quits midway and groups work into
+phases:
 
-On completion, the settings file records `onboardingCompleted: true` and returns the
-user to the main dashboard. Optional Ollama and virtual mic setup can be skipped;
-dictation still works with existing graceful fallback behavior.
+- Phase 1 signs the user in and collects profile intake.
+- Phase 2 checks camera, microphone, text/input permissions, selected devices,
+  shortcut registration, and local model assets.
+- Phase 3 offers optional three-sentence calibration. It stores local progress
+  metadata only; raw calibration audio/video is not uploaded.
+- Launch explains the configured shortcut and opens the main dashboard.
+
+On completion, the settings file records `onboardingCompleted: true` and keeps
+`onboardingStep: "done"` for resume compatibility. The dashboard shows settings,
+account status, runtime status, dictation history, Ollama, and model-cache controls.
+Optional Ollama and virtual mic setup can be skipped; dictation still works with
+existing graceful fallback behavior.
 
 ## Model Asset Cache
 

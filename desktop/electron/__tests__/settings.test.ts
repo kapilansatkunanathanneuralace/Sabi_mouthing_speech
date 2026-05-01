@@ -17,7 +17,7 @@ describe("SettingsStore", () => {
       hotkey: "Control+Alt+Space",
       pipeline: "silent",
       onboardingCompleted: false,
-      onboardingStep: "welcome"
+      onboardingStep: "account"
     });
     expect(JSON.parse(readFileSync(store.filePath, "utf-8"))).toMatchObject(store.get());
   });
@@ -52,7 +52,54 @@ describe("SettingsStore", () => {
     expect(reloaded.get()).toMatchObject({
       pipeline: "audio",
       onboardingCompleted: false,
-      onboardingStep: "welcome"
+      onboardingStep: "account"
+    });
+  });
+
+  it("keeps completed old settings on the done step", () => {
+    const dir = tempDir();
+    const store = new SettingsStore(dir, "win32");
+    writeFileSync(
+      store.filePath,
+      JSON.stringify({
+        mode: "push_to_talk",
+        hotkey: "Control+Alt+Space",
+        pipeline: "silent",
+        pasteOnAccept: true,
+        overlayEnabled: false,
+        onboardingCompleted: true,
+        onboardingStep: "models"
+      }),
+      "utf-8"
+    );
+    const reloaded = new SettingsStore(dir, "win32");
+    expect(reloaded.get()).toMatchObject({
+      onboardingCompleted: true,
+      onboardingStep: "done"
+    });
+  });
+
+  it("maps invalid onboarding steps to a safe resume point", () => {
+    const dir = tempDir();
+    const store = new SettingsStore(dir, "win32");
+    writeFileSync(
+      store.filePath,
+      JSON.stringify({
+        mode: "toggle",
+        hotkey: "Control+Alt+Space",
+        pipeline: "audio",
+        pasteOnAccept: true,
+        overlayEnabled: false,
+        onboardingCompleted: false,
+        onboardingStep: "old-camera-step"
+      }),
+      "utf-8"
+    );
+    const reloaded = new SettingsStore(dir, "win32");
+    expect(reloaded.get()).toMatchObject({
+      mode: "toggle",
+      pipeline: "audio",
+      onboardingStep: "account"
     });
   });
 

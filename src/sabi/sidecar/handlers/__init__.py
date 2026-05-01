@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sabi.sidecar.dispatcher import SidecarDispatcher
+from sabi.sidecar.handlers.calibration import register_calibration_handlers
 from sabi.sidecar.handlers.cache import register_cache_handlers
 from sabi.sidecar.handlers.dictation import SESSION_MANAGER, register_dictation_handlers
 from sabi.sidecar.handlers.eval import register_eval_handlers
@@ -18,3 +19,4 @@ def register_handlers(dispatcher: SidecarDispatcher) -> None:
     register_model_handlers(dispatcher)
     register_dictation_handlers(dispatcher, SESSION_MANAGER)
     register_eval_handlers(dispatcher)
+    register_calibration_handlers(dispatcher)

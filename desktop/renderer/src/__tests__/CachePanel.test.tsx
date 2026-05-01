@@ -47,7 +47,12 @@ function installBridge() {
     },
     permissions: {
       accessibilityStatus: vi.fn(),
-      mediaStatus: vi.fn()
+      mediaStatus: vi.fn(),
+      requestMediaAccess: vi.fn()
+    },
+    shortcuts: {
+      validate: vi.fn(),
+      test: vi.fn()
     }
   };
 }

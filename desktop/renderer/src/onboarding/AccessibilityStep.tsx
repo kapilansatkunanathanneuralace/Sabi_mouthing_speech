@@ -1,41 +1,87 @@
 import { useState } from "react";
 
+import { statusClass, type PermissionState } from "./permissionState";
 import { nextStep } from "./steps";
 import type { StepProps } from "./types";
 
-export function AccessibilityStep({ goTo, platform }: StepProps) {
+interface Props extends StepProps {
+  openPrivacySettings: (target: "accessibility" | "input-monitoring") => Promise<void>;
+}
+
+export function AccessibilityStep({ goTo, openPrivacySettings, platform }: Props) {
   const [message, setMessage] = useState<string | null>(null);
+  const [state, setState] = useState<PermissionState>(platform.isMac ? "idle" : "unsupported");
+  const canContinue = !platform.isMac || state === "granted";
 
   async function checkAccessibility(prompt: boolean) {
     if (!window.sabi) {
       setMessage("Electron permission helpers are unavailable in browser preview.");
+      setState("error");
       return;
     }
+    setState("checking");
     const result = await window.sabi.permissions.accessibilityStatus(prompt);
+    setState(result.supported ? (result.granted ? "granted" : "denied") : "unsupported");
     setMessage(
       result.supported
-        ? `Accessibility permission: ${result.granted ? "granted" : "not granted yet"}`
+        ? result.granted
+          ? "Accessibility permission is granted."
+          : "Accessibility permission is not granted yet. Open settings, grant access, then retry."
         : "Accessibility permission is not required on this platform."
     );
   }
 
   return (
     <div className="wizard-step">
-      <h2>Accessibility and input permissions</h2>
+      <h2>Text, paste, and input permissions</h2>
       {platform.isMac ? (
         <p>
-          macOS may require Accessibility and Input Monitoring permissions before global shortcuts
-          work reliably.
+          macOS requires Accessibility for reliable shortcuts and paste automation. You may also
+          need Input Monitoring enabled in System Settings.
         </p>
       ) : (
-        <p>Windows does not require an extra Accessibility permission for Sabi shortcuts.</p>
+        <p>
+          Windows does not require a separate Accessibility permission. Sabi uses the configured
+          global shortcut and clipboard paste when dictation is accepted.
+        </p>
       )}
-      {message ? <div className="check-card check-pending">{message}</div> : null}
+      <div className={`check-card ${statusClass(state)}`}>
+        <strong>
+          {state === "granted"
+            ? "Input permission granted"
+            : state === "unsupported"
+              ? "No extra permission required"
+              : state === "denied"
+                ? "Input permission denied"
+                : state === "checking"
+                  ? "Checking input permission"
+                  : "Input permission not checked"}
+        </strong>
+        <span>{message ?? "Run the check before continuing."}</span>
+      </div>
       <div className="actions">
-        <button type="button" onClick={() => void checkAccessibility(true)}>
-          Check permission
-        </button>
-        <button type="button" onClick={() => void goTo(nextStep("accessibility", platform))}>
+        {platform.isMac ? (
+          <>
+            <button type="button" onClick={() => void checkAccessibility(true)}>
+              Check permission
+            </button>
+            <button type="button" onClick={() => void openPrivacySettings("accessibility")}>
+              Open Accessibility settings
+            </button>
+            <button type="button" onClick={() => void openPrivacySettings("input-monitoring")}>
+              Open Input Monitoring settings
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={() => void checkAccessibility(false)}>
+            Review permission
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={!canContinue}
+          onClick={() => void goTo(nextStep("accessibility", platform))}
+        >
           Continue
         </button>
       </div>

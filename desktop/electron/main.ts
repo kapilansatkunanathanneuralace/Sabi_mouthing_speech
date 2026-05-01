@@ -71,6 +71,18 @@ ipcMain.handle("settings:get", () => settingsStore?.get());
 ipcMain.handle("settings:update", (_event, patch: DesktopSettingsPatch) =>
   settingsStore?.update(patch)
 );
+ipcMain.handle("shortcuts:validate", (_event, accelerator: string) =>
+  shortcuts?.validateAccelerator(accelerator) ?? {
+    ok: false,
+    message: "Shortcuts are not ready yet."
+  }
+);
+ipcMain.handle("shortcuts:test", (_event, accelerator: string, timeoutMs?: number) =>
+  shortcuts?.testAccelerator(accelerator, timeoutMs) ?? {
+    ok: false,
+    message: "Shortcuts are not ready yet."
+  }
+);
 ipcMain.handle("platform:info", () => ({
   platform: process.platform,
   isMac: process.platform === "darwin",
@@ -91,10 +103,36 @@ ipcMain.handle("permissions:media-status", (_event, mediaType: "camera" | "micro
   }
   return { supported: true, status: systemPreferences.getMediaAccessStatus(mediaType) };
 });
-ipcMain.handle("platform:open-privacy-settings", (_event, target: "camera" | "microphone") => {
-  const path = target === "camera" ? "ms-settings:privacy-webcam" : "ms-settings:privacy-microphone";
-  return shell.openExternal(path);
+ipcMain.handle("permissions:request-media-access", async (_event, mediaType: "camera" | "microphone") => {
+  if (process.platform !== "darwin") {
+    return { supported: false, granted: true };
+  }
+  const granted = await systemPreferences.askForMediaAccess(mediaType);
+  return { supported: true, granted };
 });
+ipcMain.handle(
+  "platform:open-privacy-settings",
+  (
+    _event,
+    target: "camera" | "microphone" | "accessibility" | "input-monitoring"
+  ) => {
+    const privacyPaths = {
+      camera:
+        process.platform === "darwin"
+          ? "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"
+          : "ms-settings:privacy-webcam",
+      microphone:
+        process.platform === "darwin"
+          ? "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+          : "ms-settings:privacy-microphone",
+      accessibility:
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      "input-monitoring":
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+    };
+    return shell.openExternal(privacyPaths[target]);
+  }
+);
 
 function modelCacheRoot(): string {
   if (process.env.SABI_MODELS_DIR) {

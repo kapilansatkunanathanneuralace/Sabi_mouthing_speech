@@ -55,13 +55,22 @@ contextBridge.exposeInMainWorld("sabi", {
   },
   platform: {
     info: () => ipcRenderer.invoke("platform:info"),
-    openPrivacySettings: (target: "camera" | "microphone") =>
+    openPrivacySettings: (
+      target: "camera" | "microphone" | "accessibility" | "input-monitoring"
+    ) =>
       ipcRenderer.invoke("platform:open-privacy-settings", target)
   },
   permissions: {
     accessibilityStatus: (prompt = false) =>
       ipcRenderer.invoke("permissions:accessibility-status", prompt),
     mediaStatus: (mediaType: "camera" | "microphone") =>
-      ipcRenderer.invoke("permissions:media-status", mediaType)
+      ipcRenderer.invoke("permissions:media-status", mediaType),
+    requestMediaAccess: (mediaType: "camera" | "microphone") =>
+      ipcRenderer.invoke("permissions:request-media-access", mediaType)
+  },
+  shortcuts: {
+    validate: (accelerator: string) => ipcRenderer.invoke("shortcuts:validate", accelerator),
+    test: (accelerator: string, timeoutMs?: number) =>
+      ipcRenderer.invoke("shortcuts:test", accelerator, timeoutMs)
   }
 });

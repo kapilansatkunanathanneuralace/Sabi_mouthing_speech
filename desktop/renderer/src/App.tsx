@@ -17,6 +17,7 @@ import type {
   RuntimeStatus,
   SidecarNotification
 } from "./types/sidecar";
+import { SupabasePanel } from "./SupabasePanel";
 import { useSidecar } from "./useSidecar";
 
 const MAX_HISTORY_ENTRIES = 50;
@@ -133,6 +134,7 @@ function App() {
             </button>
           </div>
         ) : null}
+        <SupabasePanel />
         {settings && platform && !settings.onboardingCompleted ? (
           <OnboardingWizard
             call={call}

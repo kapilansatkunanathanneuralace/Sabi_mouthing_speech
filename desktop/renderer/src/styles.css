@@ -441,3 +441,50 @@ button:disabled {
   padding: 0;
   list-style: none;
 }
+
+.supabase-panel code {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgb(15 23 42 / 80%);
+  font-size: 0.86em;
+}
+
+.supabase-panel .muted {
+  margin: 8px 0 0;
+  color: #94a3b8;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.supabase-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.supabase-mode button {
+  border: 1px solid rgb(148 163 184 / 35%);
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgb(15 23 42 / 65%);
+  color: #e5edf8;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.supabase-mode button.active {
+  border-color: rgb(56 189 248 / 55%);
+  background: rgb(14 165 233 / 22%);
+  color: #e0f2fe;
+}
+
+.supabase-form {
+  display: grid;
+  gap: 12px;
+  max-width: 360px;
+}
+
+.supabase-panel .error {
+  margin-top: 12px;
+}
